@@ -38,11 +38,11 @@ const RISK_DETECTOR_RULES: SignalDetectorRule[] = [
     titleHi: 'गारंटीड / निश्चित मुनाफे का झूठा वादा',
     severity: 'CRITICAL',
     patterns: [
-      /\b(?:guaranteed|assured|fixed|sure[\s-]shot|100%\s*safe|risk[\s-]free|zero[\s-]risk)\b.*?\b(?:return|returns|profit|income|payout|gain|yield|verified)\b/i,
-      /\b(?:guarantee|promise|assure)\s*(?:\d+%\s*(?:monthly|weekly|daily|annual|return|yield))\b/i,
+      /\b(?:guarantee|guarantees|guaranteed|assured|assures|fixed|sure[\s-]shot|100%\s*safe|risk[\s-]free|zero[\s-]risk)\b.*?\b(?:return|returns|profit|income|payout|gain|gains|yield|verified)\b/i,
+      /\b(?:guarantee|guarantees|promise|promises|assure|assures)\s*(?:\d+%\s*(?:monthly|weekly|daily|annual|return|yield))\b/i,
       /\b(?:\d{1,3}%)\s*(?:monthly|monthly return|daily|per day|per month|return|returns|yield|profit|gains)\b/i,
       /\b(?:double|triple)\s*(?:your\s*money|investment|funds)\s*in\s*\d+\s*(?:days|weeks|months)\b/i,
-      /(?:गारंटीड|पक्का|निश्चित)\s*(?:रिटर्न|मुनाफा|लाभ|फायदा)/i,
+      /(?:गारंटीड|पक्का|निश्चित|100%|शत-प्रतिशत)\s*(?:रिटर्न|मुनाफा|लाभ|फायदा|कमाई)/i,
       /\b100%\s*safe\b/i,
     ],
     reason:
@@ -61,8 +61,9 @@ const RISK_DETECTOR_RULES: SignalDetectorRule[] = [
     severity: 'HIGH',
     patterns: [
       /\b(?:\d{2,3}%\s*(?:daily|weekly|per week|per day))\b/i,
-      /\b(?:10x|50x|100x)\s*(?:profit|returns|gains)\b/i,
+      /\b(?:\d{1,3}x)\s*(?:profit|profits|return|returns|gain|gains)\b/i,
       /\b(?:turn\s*₹?\d+\s*into\s*₹?\d+)\b/i,
+      /(?:\d+\s*गुना|\d+\s*गुना\s*(?:मुनाफा|लाभ|फायदा|रिटर्न))/i,
     ],
     reason:
       'Astronomical returns (e.g. 30%+ monthly or 10x gains) are mathematically unsustainable and designed to lure victims into transferring capital.',
