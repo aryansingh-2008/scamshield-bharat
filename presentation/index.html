@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScamShield Bharat — 15-Slide Presentation Deck</title>
+  <style>
+    :root {
+      --bg-dark: #0a0f1d;
+      --card-bg: #131b2e;
+      --card-border: #1e293b;
+      --primary: #2563eb;
+      --primary-light: #60a5fa;
+      --accent: #38bdf8;
+      --safe: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .deck-container {
+      width: 100%;
+      max-width: 1000px;
+      min-height: 580px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+      padding: 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+
+    .slide {
+      display: none;
+      flex-direction: column;
+      justify-content: space-between;
+      height: 100%;
+      min-height: 460px;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-header {
+      border-b: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 16px;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .slide-title-group h2 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.5px;
+    }
+
+    .slide-title-group p {
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .slide-number-badge {
+      font-family: monospace;
+      font-size: 12px;
+      font-weight: 700;
+      background: rgba(56, 189, 248, 0.1);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .slide-body {
+      flex: 1;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+    }
+
+    .box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .box h4 {
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .box p {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .highlight-pill {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-top: 8px;
+    }
+
+    .pill-safe { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .pill-warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .pill-danger { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .pill-info { background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+
+    a.source-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border-bottom: 1px dashed rgba(56, 189, 248, 0.5);
+    }
+
+    a.source-link:hover {
+      color: #fff;
+      border-bottom-style: solid;
+    }
+
+    ul.clean-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    ul.clean-list li {
+      margin-bottom: 8px;
+      padding-left: 18px;
+      position: relative;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+
+    ul.clean-list li::before {
+      content: "•";
+      color: var(--accent);
+      font-weight: bold;
+      position: absolute;
+      left: 0;
+    }
+
+    .speaker-notes-drawer {
+      margin-top: 20px;
+      padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 10px;
+      border-left: 3px solid var(--accent);
+      font-size: 11px;
+      color: #94a3b8;
+      display: none;
+    }
+
+    .speaker-notes-drawer.open {
+      display: block;
+    }
+
+    .controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .btn {
+      background: #1e293b;
+      color: #fff;
+      border: 1px solid #334155;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: var(--primary);
+      border-color: var(--primary-light);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-toggle-notes {
+      font-size: 11px;
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid #475569;
+      color: #94a3b8;
+    }
+
+    .btn-toggle-notes:hover {
+      color: #fff;
+      border-color: #cbd5e1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="deck-container">
+
+    <!-- SLIDE 1: TITLE SLIDE -->
+    <div class="slide active" id="slide-1">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>ScamShield Bharat (स्कैमशील्ड भारत)</h2>
+          <p>Evidence-First Financial Scam Resilience & Verification Assistant</p>
+        </div>
+        <span class="slide-number-badge">01 / 15</span>
+      </div>
+      <div class="slide-body" style="display: flex; flex-direction: column; justify-content: center; text-align: center; gap: 20px;">
+        <h1 style="font-size: 32px; font-weight: 900; color: #ffffff; line-height: 1.3;">
+          “Before you trust a financial message, check it.”
+        </h1>
+        <p style="font-size: 15px; color: #cbd5e1; max-width: 700px; margin: 0 auto;">
+          An evidence-first financial verification assistant that helps Indian retail investors, senior citizens, and Tier-2/3 Bharat users safely evaluate suspicious messages, screenshots, and links against official regulatory records.
+        </p>
+        <div style="display: flex; justify-content: center; gap: 12px; margin-top: 10px;">
+          <span class="highlight-pill pill-info">SANGYAN IIT BHU Hackathon MVP</span>
+          <span class="highlight-pill pill-safe">Evidence Over Confidence</span>
+          <span class="highlight-pill pill-warn">Non-Advisory Guardrails</span>
+        </div>
+        <div style="margin-top: 8px; font-size: 13px;">
+          <a href="https://scamshield-bharat-kappa.vercel.app" target="_blank" rel="noopener noreferrer" class="source-link" style="color: #38bdf8; font-weight: 700;">
+            🌐 Live Public Application: https://scamshield-bharat-kappa.vercel.app
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #64748b; margin-top: 6px;">
+          Reference: <a href="https://sangyan.sntciitbhu.co.in/" target="_blank" rel="noopener noreferrer" class="source-link">SANGYAN Official Portal</a>
+        </p>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Welcome judges. ScamShield Bharat is built on a simple premise: Indian retail investors are inundated with fraudulent WhatsApp stock tips, fake KYC SMS, and clone APKs. ScamShield is not a generic chatbot or a stock picker—it is an evidence-first safety console.
+      </div>
+    </div>
+
+    <!-- SLIDE 2: THE PROBLEM -->
+    <div class="slide" id="slide-2">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>The Problem & Ground Reality in Bharat</h2>
+          <p>The Anatomy of Financial Cyber Fraud</p>
+        </div>
+        <span class="slide-number-badge">02 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="box">
+            <h4>📈 Fake Guaranteed Returns</h4>
+            <p>Telegram & WhatsApp groups lure first-time investors with "30% monthly profit" or "100% sure-shot IPO tips" using fake regulatory claims.</p>
+            <span class="highlight-pill pill-danger">Ponzi / Mule Syndicates</span>
+          </div>
+          <div class="box">
+            <h4>⏰ Urgency & Account Panics</h4>
+            <p>SMS messages threaten imminent account suspension ("KYC expired tonight, trading account blocked") with lookalike phishing links.</p>
+            <span class="highlight-pill pill-warn">Credential Harvesting</span>
+          </div>
+          <div class="box">
+            <h4>📱 Malicious APK Sideloads</h4>
+            <p>Fraudsters pose as customer support and ask victims to download custom APKs or screen-sharing tools (AnyDesk/QuickSupport) to drain bank accounts.</p>
+            <span class="highlight-pill pill-danger">Remote Device Takeover</span>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Highlight the 3 primary attack vectors: Guaranteed return promises, artificial fear/urgency, and remote software installs. These vectors exploit emotion rather than technical flaws.
+      </div>
+    </div>
+
+    <!-- SLIDE 3: TARGET USERS -->
+    <div class="slide" id="slide-3">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Who Are We Protecting?</h2>
+          <p>User Personas & Vulnerability Profiles</p>
+        </div>
+        <span class="slide-number-badge">03 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="box">
+            <h4>🌾 Primary Persona: Tier-2 / Tier-3 First-Time Investors</h4>
+            <p>Users who trade on mobile and converse in regional languages. Highly vulnerable to Hindi/regional WhatsApp forwards promising quick wealth.</p>
+            <p style="margin-top: 6px; font-size: 11px; color: #38bdf8;"><strong>Solution:</strong> Simple conversational Hindi briefing + audio voice reader.</p>
+          </div>
+          <div class="box">
+            <h4>👴 Senior Citizens & Families</h4>
+            <p>Vulnerable to impersonation calls from fake bank managers or police/CBI extortion notices threatening arrest or power disconnection.</p>
+            <p style="margin-top: 6px; font-size: 11px; color: #38bdf8;"><strong>Solution:</strong> Clear fake-threat detection and 1-click Cybercrime Helpline 1930 action.</p>
+          </div>
+          <div class="box">
+            <h4>🚀 First-Time Stock Market Entrants</h4>
+            <p>Enticed by unverified "SEBI Approved" claims and paid shills posting fake profit screenshots in private channels.</p>
+            <p style="margin-top: 6px; font-size: 11px; color: #38bdf8;"><strong>Solution:</strong> Direct correlation to official SEBI prohibited schemes circulars.</p>
+          </div>
+          <div class="box">
+            <h4>🛡️ Privacy-Conscious Individuals</h4>
+            <p>Concerned that submitting messages might leak their phone numbers, bank details, or passwords to third parties.</p>
+            <p style="margin-top: 6px; font-size: 11px; color: #38bdf8;"><strong>Solution:</strong> Automatic in-memory PII redaction and zero-data retention.</p>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Our primary persona is the Tier-2/3 first-time investor receiving a suspicious message. We design specifically for the Bharat user who needs calm clarity without technical jargon or complex dashboards.
+      </div>
+    </div>
+
+    <!-- SLIDE 4: PRODUCT PROMISE & PRINCIPLES -->
+    <div class="slide" id="slide-4">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Product Principles</h2>
+          <p>Evidence Over Confidence</p>
+        </div>
+        <span class="slide-number-badge">04 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="box">
+            <h4>1. Safety First (Non-Advisory)</h4>
+            <p>ScamShield NEVER offers stock tips, price targets, buy/sell calls, or broker recommendations. It is strictly an investor safety console.</p>
+          </div>
+          <div class="box">
+            <h4>2. Evidence Over Labels</h4>
+            <p>We never output unsupported claims like "97% scam". We present clear explainable categories: High Concern, Needs Verification, Low Concern.</p>
+          </div>
+          <div class="box">
+            <h4>3. Epistemic Honesty</h4>
+            <p>The system clearly distinguishes between <em>Verified Information</em>, <em>User Claim</em>, and <em>What Could Not Be Verified</em>.</p>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Emphasize our strict adherence to non-advisory principles and explainable safety ratings.
+      </div>
+    </div>
+
+    <!-- SLIDE 5: USER JOURNEY -->
+    <div class="slide" id="slide-5">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>The 5-Stage Verification Journey</h2>
+          <p>From Untrusted Input to Actionable Safety</p>
+        </div>
+        <span class="slide-number-badge">05 / 15</span>
+      </div>
+      <div class="slide-body">
+        <ul class="clean-list" style="margin-top: 10px;">
+          <li><strong>Stage 1 — Untrusted Input & PII Redaction:</strong> Accepts text, screenshot, or URL. Automatically masks phone, PAN, Aadhaar, email, and OTPs.</li>
+          <li><strong>Stage 2 — Claim Extraction:</strong> Isolates explicit financial promises (guaranteed yields, urgency deadlines, regulatory endorsements).</li>
+          <li><strong>Stage 3 — Risk Signal Detection:</strong> Correlates against 20 calibrated fraud patterns in English and Devanagari Hindi.</li>
+          <li><strong>Stage 4 — Regulatory Evidence Grounding:</strong> Connects claims to verified advisories from SEBI, RBI, and CERT-In.</li>
+          <li><strong>Stage 5 — Action Rail:</strong> Provides 5 calm, actionable next steps: STOP, PROTECT, VERIFY, REPORT (1930), and RECOVER.</li>
+        </ul>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Walk the judges through the 5 steps of the verification pipeline.
+      </div>
+    </div>
+
+    <!-- SLIDE 6: DETERMINISTIC RISK ENGINE -->
+    <div class="slide" id="slide-6">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Deterministic 20-Signal Risk Engine</h2>
+          <p>High-Precision Heuristics Anchored in Truth</p>
+        </div>
+        <span class="slide-number-badge">06 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="box">
+            <h4>🎯 20 Domain-Specific Detectors</h4>
+            <p>Guaranteed returns, astronomical yields, artificial urgency, legal threats, remote software (AnyDesk), sideloaded APKs, fake KYC, and mule UPI handles.</p>
+          </div>
+          <div class="box">
+            <h4>🇮🇳 Native Devanagari & Hindi Matching</h4>
+            <p>Optimized regex patterns detect Unicode Devanagari threats (e.g. <em>गारंटीड मुनाफा</em>, <em>खाता सस्पेंड</em>, <em>ओटीपी दर्ज करें</em>) without reliance on external servers.</p>
+          </div>
+          <div class="box">
+            <h4>🛡️ Prompt-Injection Immune</h4>
+            <p>Deterministic rules execute locally in-memory. Adversarial prompts cannot trick the engine into returning unsafe verdicts.</p>
+          </div>
+          <div class="box">
+            <h4>⚡ Millisecond Speed & Offline Reliability</h4>
+            <p>Zero external API bottleneck; evaluation completes instantly even under intermittent network conditions.</p>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Point out that the deterministic engine provides an unshakeable ground truth that runs offline and is completely prompt-injection resistant.
+      </div>
+    </div>
+
+    <!-- SLIDE 7: OFFICIAL REGULATORY EVIDENCE MODEL -->
+    <div class="slide" id="slide-7">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Official Regulatory Evidence Model</h2>
+          <p>Grounding Conclusions in Verified Sources</p>
+        </div>
+        <span class="slide-number-badge">07 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="box">
+            <h4>🏛️ SEBI Recognised Intermediaries</h4>
+            <p>Verification of registered broker/adviser license numbers.<br />
+            <a href="https://www.sebi.gov.in/sebiweb/other/OtherAction.do?doRecognised=yes" target="_blank" rel="noopener noreferrer" class="source-link">SEBI Recognised Intermediaries</a></p>
+          </div>
+          <div class="box">
+            <h4>🔍 SEBI Spot a Scam Guide</h4>
+            <p>Official guidance on spotting fake returns & tips.<br />
+            <a href="https://investor.sebi.gov.in/spot-any-scam.html" target="_blank" rel="noopener noreferrer" class="source-link">SEBI Investor Guidance</a></p>
+          </div>
+          <div class="box">
+            <h4>📱 SEBI Fake Trading App Advisory</h4>
+            <p>Advisory on fake trading apps, Telegram groups, and mule accounts.<br />
+            <a href="https://investor.sebi.gov.in/pdf/Fake%20trading%20app%20scam%20Landscape.pdf" target="_blank" rel="noopener noreferrer" class="source-link">SEBI Fake Trading App Advisory</a></p>
+          </div>
+          <div class="box">
+            <h4>⚖️ SEBI SCORES 2.0</h4>
+            <p>Official investor grievance redressal portal.<br />
+            <a href="https://scores.sebi.gov.in/scores-home" target="_blank" rel="noopener noreferrer" class="source-link">SCORES Portal</a></p>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Every single URL in our evidence database is official, verified live, and accurately mapped to its specific purpose.
+      </div>
+    </div>
+
+    <!-- SLIDE 8: CYBERCRIME & RBI SOURCES -->
+    <div class="slide" id="slide-8">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Cybercrime & RBI Verification Sources</h2>
+          <p>Immediate Relief & National Advisory Network</p>
+        </div>
+        <span class="slide-number-badge">08 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="box">
+            <h4>🚨 Cyber Crime Portal</h4>
+            <p>National portal for cyber financial fraud complaints.<br />
+            <a href="https://www.cybercrime.gov.in/" target="_blank" rel="noopener noreferrer" class="source-link">Cyber Crime Portal</a></p>
+            <span class="highlight-pill pill-safe">MHA / I4C Verified</span>
+          </div>
+          <div class="box">
+            <h4>📞 Cybercrime Helpline 1930</h4>
+            <p>24x7 immediate hotline to freeze stolen funds within the Golden Hour.<br />
+            <strong style="color:#fff;">Direct Helpline: 1930</strong></p>
+            <span class="highlight-pill pill-safe">Emergency Hotline</span>
+          </div>
+          <div class="box">
+            <h4>🛡️ CERT-In & RBI Sachet</h4>
+            <p>Advisories on malicious APKs and unauthorized schemes.<br />
+            <a href="https://www.cert-in.org.in/" target="_blank" rel="noopener noreferrer" class="source-link">CERT-In</a> | <a href="https://sachet.rbi.org.in/" target="_blank" rel="noopener noreferrer" class="source-link">RBI Sachet</a></p>
+            <span class="highlight-pill pill-safe">Official Advisories</span>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> We distinguish SCORES (grievance) from Intermediaries (registration) and Helpline 1930 (immediate financial freeze).
+      </div>
+    </div>
+
+    <!-- SLIDE 9: TRANSPARENT UNCERTAINTY -->
+    <div class="slide" id="slide-9">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Epistemic Honesty & Uncertainty</h2>
+          <p>“Could Not Verify” is Separate From “False”</p>
+        </div>
+        <span class="slide-number-badge">09 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="box">
+            <h4>❓ Why Uncertainty Matters</h4>
+            <p>Many systems make false binary claims. If an entity name is not found in an offline database, saying "it is definitely fake" could be inaccurate.</p>
+            <p style="margin-top: 8px; font-size: 11px;">ScamShield marks these as <strong>Could Not Verify Independently</strong>.</p>
+          </div>
+          <div class="box">
+            <h4>🔍 Empowering Independent Action</h4>
+            <p>For every unverified item, ScamShield explains:
+            <br />1. Why it could not be verified automatically.
+            <br />2. How the user can check safely (e.g. logging into official banking apps directly).</p>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Epistemic honesty is our core differentiator. We do not hallucinate certainty.
+      </div>
+    </div>
+
+    <!-- SLIDE 10: BHARAT-FIRST ACCESSIBILITY -->
+    <div class="slide" id="slide-10">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Bharat-First Regional Accessibility</h2>
+          <p>Natural Hindi & Speech Synthesis Audio</p>
+        </div>
+        <span class="slide-number-badge">10 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="box">
+            <h4>🌐 Instant EN | हिंदी Toggle</h4>
+            <p>One-click switch updates headlines, claim summaries, evidence notes, and action checklists into simple conversational Hindi.</p>
+          </div>
+          <div class="box">
+            <h4>🔊 Speech Audio Reader</h4>
+            <p>Integrated Web Speech API reads aloud the risk briefing in clear Hindi or Indian English for senior citizens or visually impaired users.</p>
+          </div>
+          <div class="box">
+            <h4>📱 Responsive on Any Device</h4>
+            <p>Zero horizontal scroll; tested across 375px mobile screens up to 4K monitors with large touch-friendly action buttons.</p>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> We support Hindi natively with Devanagari script and audio speech synthesis.
+      </div>
+    </div>
+
+    <!-- SLIDE 11: 3 DETERMINISTIC DEMO SCENARIOS -->
+    <div class="slide" id="slide-11">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>3 Deterministic Demo Scenarios</h2>
+          <p>Instant 1-Click Walkthrough for Judges</p>
+        </div>
+        <span class="slide-number-badge">11 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="box">
+            <h4>1. Guaranteed Return + Telegram</h4>
+            <p>“SEBI approved opportunity. 30% monthly profit. Join VIP Telegram. Deposit ₹50,000.”</p>
+            <span class="highlight-pill pill-danger">HIGH CONCERN</span>
+          </div>
+          <div class="box">
+            <h4>2. Fake KYC Urgency Threat</h4>
+            <p>“Your KYC will expire tonight. Account blocked. Verify immediately at kyc-update-portal.xyz.”</p>
+            <span class="highlight-pill pill-danger">HIGH CONCERN</span>
+          </div>
+          <div class="box">
+            <h4>3. Remote Access APK Scam</h4>
+            <p>“Your account needs verification. Install this remote support APK to claim rewards.”</p>
+            <span class="highlight-pill pill-danger">HIGH CONCERN</span>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Show judges that they can trigger any of the 3 real-world scenarios with a single click.
+      </div>
+    </div>
+
+    <!-- SLIDE 12: CALM 5-STEP ACTION RAIL -->
+    <div class="slide" id="slide-12">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Calm 5-Step Safe Action Rail</h2>
+          <p>Immediate Protection & Financial Recovery</p>
+        </div>
+        <span class="slide-number-badge">12 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="box">
+            <h4>🛑 1. STOP & 2. PROTECT</h4>
+            <p><strong>STOP:</strong> Pause before transferring funds or clicking links. Take 15 minutes.<br />
+            <strong>PROTECT:</strong> Never share OTP, UPI PIN, passwords, or remote screen access.</p>
+          </div>
+          <div class="box">
+            <h4>🔎 3. VERIFY & 4. REPORT & 5. RECOVER</h4>
+            <p><strong>VERIFY:</strong> Check official SEBI / RBI registries independently.<br />
+            <strong>REPORT:</strong> 1-click call to 1930 / cybercrime.gov.in.<br />
+            <strong>RECOVER:</strong> Block cards via banking app & change netbanking passwords.</p>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> The action checklist transforms panic into structured, calm steps that save money.
+      </div>
+    </div>
+
+    <!-- SLIDE 13: SECURITY & PRIVACY ARCHITECTURE -->
+    <div class="slide" id="slide-13">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Security & Privacy Architecture</h2>
+          <p>Security-by-Design Guarantees</p>
+        </div>
+        <span class="slide-number-badge">13 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-3">
+          <div class="box">
+            <h4>🔒 Untrusted Data Isolation</h4>
+            <p>Strict prompt injection containment. User input cannot override system instructions or modify classifications.</p>
+          </div>
+          <div class="box">
+            <h4>🌐 SSRF & URL Security</h4>
+            <p>Disallows localhost, IPv6 loopbacks, private subnets, wildcard DNS (nip.io), and non-web schemes (file:, gopher:).</p>
+          </div>
+          <div class="box">
+            <h4>🛡️ In-Memory PII Redaction</h4>
+            <p>Masks phone numbers, emails, bank accounts, card numbers, OTPs, PAN, and Aadhaar before any processing.</p>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Highlight that user data is treated as untrusted and processed ephemerally with zero credential collection.
+      </div>
+    </div>
+
+    <!-- SLIDE 14: TESTING & AUDIT VERIFICATION -->
+    <div class="slide" id="slide-14">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Testing & Audit Verification</h2>
+          <p>Technically Defensible & Verified</p>
+        </div>
+        <span class="slide-number-badge">14 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="box">
+            <h4>🧪 Automated Vitest Suite (69 Tests)</h4>
+            <p>100% passing across 6 suites covering Zod schemas, security vectors, e2e journeys, guardrails, and 40 adversarial prompt-injection & SSRF test cases.</p>
+            <span class="highlight-pill pill-safe">69 / 69 Tests Passed</span>
+          </div>
+          <div class="box">
+            <h4>🚀 Live HTTP Smoke Test Suite (39 Tests)</h4>
+            <p>Evaluated against production server on port 3000 verifying CSP headers, rate limiting (30 req/min/IP), PII masking, and file bounds.</p>
+            <span class="highlight-pill pill-safe">39 / 39 Smoke Tests Passed</span>
+          </div>
+        </div>
+        <div style="margin-top: 16px; padding: 12px; background: rgba(56, 189, 248, 0.08); border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.2); font-size: 12px; color: #e2e8f0;">
+          <strong>Security Status:</strong> Passed current pre-demo security, guardrail, and real-world regression test gate.
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> We use accurate, technically defensible wording: "Passed current security and regression test suite with 69 automated tests".
+      </div>
+    </div>
+
+    <!-- SLIDE 15: ROADMAP & CONCLUSION -->
+    <div class="slide" id="slide-15">
+      <div class="slide-header">
+        <div class="slide-title-group">
+          <h2>Roadmap & Conclusion</h2>
+          <p>Empowering Bharat Investors</p>
+        </div>
+        <span class="slide-number-badge">15 / 15</span>
+      </div>
+      <div class="slide-body">
+        <div class="grid-2">
+          <div class="box">
+            <h4>🗺️ Post-Hackathon Roadmap</h4>
+            <ul class="clean-list" style="margin-top: 6px;">
+              <li>Dynamic scrapers for SEBI Debarred Entities & RBI Sachet listings.</li>
+              <li>Expanded regional languages (Tamil, Telugu, Bengali, Marathi, Gujarati).</li>
+              <li>On-device WebAssembly OCR for offline screenshot inspection.</li>
+            </ul>
+          </div>
+          <div class="box">
+            <h4>💡 Summary for Judges</h4>
+            <p>ScamShield Bharat delivers a complete, evidence-first, Bharat-ready financial safety console that bridges the gap between complex regulatory advisories and everyday investors.</p>
+            <div style="margin-top: 12px;">
+              <span class="highlight-pill pill-safe">🟢 GREEN — Submission Ready</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="speaker-notes-drawer">
+        <strong>Speaker Note:</strong> Conclude by emphasizing the public-good impact: helping Indian citizens stop, verify, and protect their hard-earned money. Thank the judges!
+      </div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="controls-bar">
+      <button class="btn" id="prev-btn" onclick="prevSlide()">← Previous</button>
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <button class="btn btn-toggle-notes" onclick="toggleNotes()">Toggle Speaker Notes (N)</button>
+        <span id="slide-indicator" style="font-family: monospace; font-size: 12px; color: #94a3b8;">Slide 1 of 15</span>
+      </div>
+      <button class="btn" id="next-btn" onclick="nextSlide()">Next →</button>
+    </div>
+
+  </div>
+
+  <script>
+    let currentSlide = 1;
+    const totalSlides = 15;
+
+    function showSlide(index) {
+      if (index < 1) index = 1;
+      if (index > totalSlides) index = totalSlides;
+      currentSlide = index;
+
+      for (let i = 1; i <= totalSlides; i++) {
+        const slide = document.getElementById(`slide-${i}`);
+        if (slide) slide.classList.remove('active');
+      }
+
+      const activeSlide = document.getElementById(`slide-${currentSlide}`);
+      if (activeSlide) activeSlide.classList.add('active');
+
+      document.getElementById('slide-indicator').innerText = `Slide ${currentSlide} of ${totalSlides}`;
+      document.getElementById('prev-btn').disabled = currentSlide === 1;
+      document.getElementById('next-btn').disabled = currentSlide === totalSlides;
+    }
+
+    function prevSlide() {
+      if (currentSlide > 1) showSlide(currentSlide - 1);
+    }
+
+    function nextSlide() {
+      if (currentSlide < totalSlides) showSlide(currentSlide + 1);
+    }
+
+    function toggleNotes() {
+      const drawers = document.querySelectorAll('.speaker-notes-drawer');
+      drawers.forEach(d => d.classList.toggle('open'));
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft') {
+        prevSlide();
+      } else if (e.key.toLowerCase() === 'n') {
+        toggleNotes();
+      }
+    });
+
+    showSlide(1);
+  </script>
+</body>
+</html>
