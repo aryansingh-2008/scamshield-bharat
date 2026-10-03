@@ -156,8 +156,8 @@ export default function EvidenceTrail({
 
       {/* 2. Structured Investigation Matrix (Desktop & Mobile) */}
       <div className="space-y-3">
-        {/* Table Column Headers (Desktop: EXACT same 5-column grid as data rows) */}
-        <div className={`hidden md:grid ${gridTemplateClasses} gap-3 sm:gap-4 px-4 py-2.5 bg-[#F2F5F8] border border-[#D8DEE5] rounded-lg text-[11px] font-mono font-bold text-[#667085] uppercase tracking-wider items-center`}>
+        {/* Table Column Headers (Desktop >=1024px: EXACT same 5-column grid as data rows) */}
+        <div className={`hidden lg:grid ${gridTemplateClasses} gap-3 sm:gap-4 px-4 py-2.5 bg-[#F2F5F8] border border-[#D8DEE5] rounded-lg text-[11px] font-mono font-bold text-[#667085] uppercase tracking-wider items-center`}>
           <div className="min-w-0 text-center">{t.evidenceColNum}</div>
           <div className="min-w-0">{t.evidenceColClaim}</div>
           <div className="min-w-0">{t.evidenceColSource}</div>
@@ -173,8 +173,8 @@ export default function EvidenceTrail({
 
           return (
             <React.Fragment key={claim.id || index}>
-              {/* Desktop Matrix Row (EXACT same 5-column grid as header, min-w-0 on all children, natural wrapping) */}
-              <div className={`hidden md:grid ${gridTemplateClasses} gap-3 sm:gap-4 items-start p-3.5 rounded-lg border border-[#D8DEE5] bg-white hover:border-[#164E78]/40 transition-colors shadow-2xs`}>
+              {/* Desktop Matrix Row (>= 1024px: EXACT same 5-column grid as header, min-w-0 on all children, natural wrapping) */}
+              <div className={`hidden lg:grid ${gridTemplateClasses} gap-3 sm:gap-4 items-start p-3.5 rounded-lg border border-[#D8DEE5] bg-white hover:border-[#164E78]/40 transition-colors shadow-2xs`}>
                 {/* 1. # Index (48px) */}
                 <div className="min-w-0 flex items-start justify-center pt-0.5">
                   <span className="w-8 h-8 rounded-md bg-[#F2F5F8] border border-[#D8DEE5] flex items-center justify-center font-mono font-bold text-xs text-[#17202A]">
@@ -234,65 +234,106 @@ export default function EvidenceTrail({
                 </div>
               </div>
 
-              {/* Mobile Card Stack (< md screens, 320px - 767px) */}
-              <div className="md:hidden block rounded-lg border border-[#D8DEE5] bg-white p-4 space-y-3 shadow-xs">
-                <div className="flex items-center justify-between border-b border-[#D8DEE5] pb-2">
-                  <span className="font-mono text-xs font-bold text-[#17202A]">
-                    #{index + 1}: {claim.category.replace(/_/g, ' ')}
+              {/* Mobile Dedicated Vertical Card Stack (< 1024px screens, 320px - 1023px) */}
+              <div className="lg:hidden block rounded-xl border border-[#D8DEE5] bg-white p-4 space-y-3.5 shadow-xs">
+                {/* Mobile Card Header */}
+                <div className="flex items-center justify-between border-b border-[#D8DEE5] pb-2.5">
+                  <span className="font-mono text-xs font-bold text-[#17202A] flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-md bg-[#F2F5F8] border border-[#D8DEE5] flex items-center justify-center text-xs font-mono font-bold text-[#17202A]">
+                      {index + 1}
+                    </span>
+                    <span>{claim.category.replace(/_/g, ' ')}</span>
                   </span>
-                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold border ${statusConfig.badgeClass}`}>
+                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-mono font-bold border shadow-2xs ${statusConfig.badgeClass}`}>
                     <StatusIcon className="w-3 h-3 shrink-0" />
                     <span>{statusConfig.label}</span>
                   </span>
                 </div>
 
+                {/* Step 1: User Claim */}
                 <div className="space-y-1">
                   <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#667085] block">
                     {t.evidenceColClaim}
                   </span>
-                  <div className="p-2.5 rounded bg-[#F2F5F8] border border-[#D8DEE5] text-xs font-mono text-[#17202A] break-words">
+                  <div className="p-3 rounded-lg bg-[#F2F5F8] border border-[#D8DEE5] text-xs font-mono text-[#17202A] leading-relaxed break-words whitespace-normal">
                     &ldquo;{claim.text}&rdquo;
                   </div>
                 </div>
 
-                <div className="flex justify-center py-0.5">
-                  <ArrowDown className="w-3.5 h-3.5 text-[#667085]" />
+                {/* Directional Connector */}
+                <div className="flex items-center justify-center py-0.5">
+                  <div className="w-6 h-6 rounded-full bg-[#EEF4F9] border border-[#D8DEE5] flex items-center justify-center text-[#164E78]">
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </div>
                 </div>
 
-                {matchedEvid && (
+                {/* Step 2: Trusted Official Source */}
+                {matchedEvid ? (
                   <div className="space-y-1">
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#667085] block">
                       {t.evidenceColSource}
                     </span>
-                    <div className="p-2.5 rounded bg-[#EEF4F9]/60 border border-[#D8DEE5] text-xs space-y-1">
-                      <div className="flex items-start gap-2">
-                        <Building2 className="w-4 h-4 text-[#164E78] shrink-0 mt-0.5" />
-                        <strong className="text-[#164E78] font-sans block text-xs break-words">
-                          {lang === 'hi' ? matchedEvid.titleHi : matchedEvid.title}
-                        </strong>
-                      </div>
-                      <div className="pl-6">
-                        <a
-                          href={matchedEvid.sourceUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] text-[#155E8A] font-mono inline-flex items-center gap-0.5"
-                        >
-                          <span>{matchedEvid.sourceName}</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                    <div className="p-3 rounded-lg bg-[#EEF4F9] border border-[#D8DEE5] text-xs space-y-1.5">
+                      <div className="flex items-start gap-2.5">
+                        <div className="p-1.5 rounded-md bg-white text-[#164E78] border border-[#D8DEE5] shrink-0 mt-0.5 shadow-2xs">
+                          <Building2 className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <strong className="text-xs text-[#164E78] font-bold font-sans block leading-snug break-words">
+                            {lang === 'hi' ? matchedEvid.titleHi : matchedEvid.title}
+                          </strong>
+                          <a
+                            href={matchedEvid.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] text-[#155E8A] hover:underline font-mono inline-flex items-center gap-1 break-all"
+                          >
+                            <span>{matchedEvid.sourceName}</span>
+                            <ExternalLink className="w-3 h-3 shrink-0" />
+                          </a>
+                        </div>
                       </div>
                     </div>
                   </div>
+                ) : (
+                  <div className="p-3 rounded-lg bg-[#F2F5F8] border border-[#D8DEE5] text-xs font-mono text-[#667085]">
+                    Regulatory Advisory
+                  </div>
                 )}
 
+                {/* Directional Connector */}
+                <div className="flex items-center justify-center py-0.5">
+                  <div className="w-6 h-6 rounded-full bg-[#EEF4F9] border border-[#D8DEE5] flex items-center justify-center text-[#164E78]">
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+
+                {/* Step 3: Regulatory Status & Explanation */}
                 <div className="space-y-1">
                   <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-[#667085] block">
                     {t.evidenceColExplanation}
                   </span>
-                  <div className={`p-2.5 rounded-lg text-xs font-sans leading-relaxed border break-words ${statusConfig.boxClass}`}>
+                  <div className={`p-3 rounded-lg text-xs font-sans leading-relaxed border break-words whitespace-normal ${statusConfig.boxClass}`}>
                     {lang === 'hi' ? (claim.hindiExplanation || claim.explanation) : claim.explanation}
                   </div>
+                </div>
+
+                {/* Directional Connector */}
+                <div className="flex items-center justify-center py-0.5">
+                  <div className="w-6 h-6 rounded-full bg-[#EEF4F9] border border-[#D8DEE5] flex items-center justify-center text-[#164E78]">
+                    <ArrowDown className="w-3.5 h-3.5" />
+                  </div>
+                </div>
+
+                {/* Step 4: Risk Verdict */}
+                <div className="p-3 rounded-lg border border-[#D8DEE5] bg-[#F2F5F8] flex items-center justify-between text-xs">
+                  <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#667085]">
+                    {t.evidenceColRisk}
+                  </span>
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold font-mono border shadow-2xs ${statusConfig.badgeClass}`}>
+                    <StatusIcon className="w-3.5 h-3.5 shrink-0" />
+                    <span>{statusConfig.label}</span>
+                  </span>
                 </div>
               </div>
             </React.Fragment>

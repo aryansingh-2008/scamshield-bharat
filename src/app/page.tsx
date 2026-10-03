@@ -216,7 +216,59 @@ export default function HomePage() {
                 </div>
 
                 {/* Clean Input Source Selector */}
-                <div className="flex items-center bg-console-850 p-1 rounded-lg border border-console-700 shrink-0">
+                {/* Mobile 2x2 Selector (< sm) */}
+                <div className="grid grid-cols-2 gap-1.5 w-full sm:hidden bg-console-850 p-1.5 rounded-lg border border-console-700">
+                  <button
+                    onClick={() => switchTab('text')}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md text-xs font-medium transition-colors ${
+                      activeTab === 'text'
+                        ? 'bg-white text-safety-brand-primary shadow-xs font-semibold border border-console-700'
+                        : 'text-console-400 hover:text-console-100'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>{t.tabMessage}</span>
+                  </button>
+
+                  <button
+                    onClick={() => switchTab('screenshot')}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md text-xs font-medium transition-colors ${
+                      activeTab === 'screenshot'
+                        ? 'bg-white text-safety-brand-primary shadow-xs font-semibold border border-console-700'
+                        : 'text-console-400 hover:text-console-100'
+                    }`}
+                  >
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>{t.tabScreenshot}</span>
+                  </button>
+
+                  <button
+                    onClick={() => switchTab('url')}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md text-xs font-medium transition-colors ${
+                      activeTab === 'url'
+                        ? 'bg-white text-safety-brand-primary shadow-xs font-semibold border border-console-700'
+                        : 'text-console-400 hover:text-console-100'
+                    }`}
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>{t.tabLink}</span>
+                  </button>
+
+                  <button
+                    onClick={() => switchTab('demo')}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-md text-xs font-medium transition-colors ${
+                      activeTab === 'demo'
+                        ? 'bg-white text-safety-brand-primary shadow-xs font-semibold border border-console-700'
+                        : 'text-console-400 hover:text-console-100'
+                    }`}
+                  >
+                    <PlayCircle className="w-3.5 h-3.5 text-safety-brand-primary" />
+                    <span>{t.tabDemo}</span>
+                  </button>
+                </div>
+
+                {/* Desktop Inline Selector (>= sm) */}
+                <div className="hidden sm:flex items-center bg-console-850 p-1 rounded-lg border border-console-700 shrink-0">
                   <button
                     onClick={() => switchTab('text')}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${

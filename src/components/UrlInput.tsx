@@ -95,11 +95,11 @@ export default function UrlInput({ lang, onAnalyzeUrl, isLoading }: UrlInputProp
         </div>
       )}
 
-      <div className="flex items-center gap-2.5 pt-1">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
         <button
           type="submit"
           disabled={isLoading || !url.trim()}
-          className="flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-md font-semibold text-xs sm:text-sm bg-safety-brand-primary text-white hover:bg-safety-brand-secondary active:scale-[0.99] disabled:bg-[#D8DEE5] disabled:text-[#667085] disabled:cursor-not-allowed transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-safety-brand-primary"
+          className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-md font-semibold text-xs sm:text-sm bg-safety-brand-primary text-white hover:bg-safety-brand-secondary active:scale-[0.99] disabled:bg-[#D8DEE5] disabled:text-[#667085] disabled:cursor-not-allowed transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-safety-brand-primary"
         >
           {isLoading ? (
             <span>{t.btnAnalyzing}</span>
@@ -115,10 +115,12 @@ export default function UrlInput({ lang, onAnalyzeUrl, isLoading }: UrlInputProp
           <button
             type="button"
             onClick={() => setUrl('')}
-            className="p-3 rounded-md border border-console-700 bg-white text-console-400 hover:text-console-100 hover:bg-console-850 transition-colors"
+            className="py-2.5 px-4 sm:p-3 rounded-md border border-console-700 bg-white text-console-400 hover:text-console-100 hover:bg-console-850 transition-colors flex items-center justify-center gap-1.5 text-xs font-medium"
             title={t.btnClear}
+            aria-label={t.btnClear}
           >
             <Trash2 className="w-4 h-4" />
+            <span className="sm:hidden">{t.btnClear}</span>
           </button>
         )}
       </div>
