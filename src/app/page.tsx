@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from 'react';
 import Header from '@/components/Header';
+import OfficialSlideHero from '@/components/OfficialSlideHero';
 import PrivacyNotice from '@/components/PrivacyNotice';
 import MessageInput from '@/components/MessageInput';
 import ImageUploader from '@/components/ImageUploader';
@@ -178,20 +179,10 @@ export default function HomePage() {
 
       <main className="flex-1 max-w-[1440px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-3 sm:py-5 space-y-5">
         {/* =======================================================
-            SCREEN 1: LANDING HERO
+            SCREEN 1: LANDING HERO (OFFICIAL MISSION & TRUST)
             ======================================================= */}
         {!analysisResult && !isLoading && (
-          <section className="text-center space-y-2 pt-0 sm:pt-1 animate-in fade-in duration-300">
-            {/* Direct Action Headline */}
-            <h1 className="text-2xl sm:text-3.5xl font-extrabold text-console-100 tracking-tight max-w-2xl mx-auto leading-tight">
-              {t.heroHeadline}
-            </h1>
-
-            {/* Supporting Line */}
-            <p className="text-xs sm:text-sm text-console-300 max-w-xl mx-auto leading-relaxed font-sans">
-              {t.heroSubheadline}
-            </p>
-          </section>
+          <OfficialSlideHero lang={lang} />
         )}
 
         {/* =======================================================
