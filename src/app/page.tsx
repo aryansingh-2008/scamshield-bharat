@@ -548,10 +548,10 @@ export default function HomePage() {
                   </p>
                 </div>
 
-                {/* 5. EXPANDED DEEP TECHNICAL AUDIT STAGES (Shown only on demand) */}
+                {/* 5. EXPANDED DEEP TECHNICAL AUDIT STAGES (Complete 6-Stage Architecture) */}
                 {showTechnicalDetails && (
                   <div className="space-y-6 pt-4 border-t border-slate-200 animate-in fade-in slide-in-from-top-2 duration-300">
-                    {/* STAGE 01: SUBMITTED CONTENT INSPECTION BOX */}
+                    {/* STAGE 01: UNTRUSTED INPUT INGESTION & BOUNDARY CHECK */}
                     <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3.5 shadow-xs">
                       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                         <div className="flex items-center gap-2.5">
@@ -559,20 +559,66 @@ export default function HomePage() {
                             STAGE 01
                           </span>
                           <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
-                            {lang === 'hi' ? 'प्राप्त सामग्री की जांच (Submitted Content Inspection)' : 'Submitted Content Inspection'}
+                            {lang === 'hi' ? 'अविश्वसनीय इनपुट ग्रहण व सत्यापन (Untrusted Input Ingestion)' : 'Untrusted User Input Ingestion & Verification'}
                           </h3>
                         </div>
                         <div className="flex items-center gap-2.5">
-                          {analysisResult.piiRedacted && (
-                            <span className="text-xs font-mono text-emerald-800 flex items-center gap-1 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-                              <Lock className="w-3 h-3 text-emerald-600" /> PII Masked
-                            </span>
-                          )}
-                          <span className="text-xs font-mono font-medium text-slate-500">
-                            IN-MEMORY SCAN
+                          <span className="text-xs font-mono font-bold text-[#004A87] bg-blue-50 px-2.5 py-0.5 rounded border border-blue-200">
+                            INPUT: {analysisResult.inputMode.toUpperCase()}
+                          </span>
+                          <span className="text-xs font-mono font-medium text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+                            MIME & SIZE VERIFIED
                           </span>
                         </div>
                       </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                          <span className="text-[10.5px] font-mono text-slate-500 uppercase block font-semibold">{lang === 'hi' ? 'सामग्री प्रकार:' : 'Input Mode:'}</span>
+                          <span className="font-bold text-slate-800">{analysisResult.inputMode.toUpperCase()} MODE</span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                          <span className="text-[10.5px] font-mono text-slate-500 uppercase block font-semibold">{lang === 'hi' ? 'सुरक्षा सीमा:' : 'Security Boundary:'}</span>
+                          <span className="font-bold text-emerald-700">Strict Untrusted Sandbox</span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                          <span className="text-[10.5px] font-mono text-slate-500 uppercase block font-semibold">{lang === 'hi' ? 'समय मुहर:' : 'Timestamp:'}</span>
+                          <span className="font-mono text-slate-700">{analysisResult.timestamp}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* STAGE 02: IN-MEMORY PII REDACTION & PRIVACY MASKING AUDIT */}
+                    <div className="p-5 rounded-2xl border border-slate-200 bg-white space-y-3.5 shadow-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="px-2.5 py-1 rounded-md bg-[#004A87] text-white font-mono font-bold text-xs tracking-wider uppercase shrink-0">
+                            STAGE 02
+                          </span>
+                          <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
+                            {lang === 'hi' ? 'निजी डेटा मास्किंग व सुरक्षा ऑडिट (In-Memory PII Redaction)' : 'In-Memory PII Redaction & Client Privacy Audit'}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          {analysisResult.piiRedacted ? (
+                            <span className="text-xs font-mono text-emerald-800 flex items-center gap-1 bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200 font-bold">
+                              <Lock className="w-3 h-3 text-emerald-600" /> PII Masked
+                            </span>
+                          ) : (
+                            <span className="text-xs font-mono text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded border border-slate-200">
+                              No Sensitive PII Found
+                            </span>
+                          )}
+                          <span className="text-xs font-mono font-medium text-slate-500">
+                            ZERO RETENTION
+                          </span>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-600 font-sans leading-relaxed">
+                        {lang === 'hi'
+                          ? 'आपका निजी डेटा (आधार, पैन, मोबाइल, बैंक खाता, यूपीआई) मेमोरी में ही मास्क कर दिया गया है ताकि कोई संवेदनशील जानकारी बाहर न जाए:'
+                          : 'All phone numbers, Aadhaar, PAN cards, OTPs, and bank accounts are sanitized in-memory before risk evaluation:'}
+                      </p>
 
                       {analysisResult.redactedInputPreview && (
                         <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-slate-800 leading-relaxed max-h-36 overflow-y-auto whitespace-pre-wrap">
@@ -581,18 +627,7 @@ export default function HomePage() {
                       )}
                     </div>
 
-                    {/* STAGE 02: EVIDENCE TRAIL (MATRIX) */}
-                    {analysisResult.claims && analysisResult.claims.length > 0 && (
-                      <EvidenceTrail
-                        claims={analysisResult.claims}
-                        evidence={analysisResult.evidence || []}
-                        couldNotVerify={analysisResult.couldNotVerify || []}
-                        overallStatus={analysisResult.status}
-                        lang={lang}
-                      />
-                    )}
-
-                    {/* STAGE 03: DETECTED RISK SIGNALS */}
+                    {/* STAGE 03: DETERMINISTIC RISK SIGNALS & RED FLAGS */}
                     {analysisResult.riskSignals && analysisResult.riskSignals.length > 0 && (
                       <div className="space-y-3 pt-2">
                         <div className="border-b border-slate-200 pb-3 flex items-center justify-between gap-3">
@@ -601,7 +636,7 @@ export default function HomePage() {
                               STAGE 03
                             </span>
                             <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
-                              {t.riskSignalsTitle}
+                              {lang === 'hi' ? 'नियम-आधारित खतरे के संकेत (Deterministic Risk Signals)' : 'Deterministic Risk Engine & Detected Red Flags'}
                             </h3>
                           </div>
                           <span className="px-2.5 py-1 rounded text-xs font-mono font-bold bg-red-50 text-red-700 border border-red-200">
@@ -617,8 +652,68 @@ export default function HomePage() {
                       </div>
                     )}
 
-                    {/* STAGE 04: EPISTEMIC UNCERTAINTY (WHAT COULD NOT BE VERIFIED) */}
+                    {/* STAGE 04: TRUSTED REGULATORY EVIDENCE TRAIL & CLAIMS MATRIX */}
+                    {analysisResult.claims && analysisResult.claims.length > 0 && (
+                      <EvidenceTrail
+                        claims={analysisResult.claims}
+                        evidence={analysisResult.evidence || []}
+                        couldNotVerify={analysisResult.couldNotVerify || []}
+                        overallStatus={analysisResult.status}
+                        lang={lang}
+                      />
+                    )}
+
+                    {/* STAGE 05: EPISTEMIC UNCERTAINTY & UNVERIFIED CLAIMS */}
                     <UncertaintyCard items={analysisResult.couldNotVerify} lang={lang} />
+
+                    {/* STAGE 06: DEFENSIVE ACTION PROTOCOL & ESCALATION AUDIT */}
+                    <div className="p-5 rounded-2xl border border-[#004A87]/30 bg-gradient-to-br from-white to-[#F4F9FD] space-y-4 shadow-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
+                        <div className="flex items-center gap-2.5">
+                          <span className="px-2.5 py-1 rounded-md bg-[#004A87] text-white font-mono font-bold text-xs tracking-wider uppercase shrink-0">
+                            STAGE 06
+                          </span>
+                          <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans tracking-tight">
+                            {lang === 'hi' ? 'सुरक्षा कार्य योजना व रिपोर्ट सारांश (Defensive Action Protocol)' : 'Defensive Action Protocol & Verification Summary'}
+                          </h3>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono font-bold text-xs">
+                          5-STEP PROTOCOL ACTIVE
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1 shadow-2xs">
+                          <div className="flex items-center gap-1.5 text-[#004A87] font-bold">
+                            <ShieldCheck className="w-4 h-4" />
+                            <span>{lang === 'hi' ? 'कार्रवाई स्थिति:' : 'Action Status:'}</span>
+                          </div>
+                          <p className="text-slate-600 text-[11.5px] leading-snug">
+                            {lang === 'hi' ? '5-चरणीय सुरक्षा योजना तैयार' : '5-step containment protocol generated'}
+                          </p>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1 shadow-2xs">
+                          <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                            <Lock className="w-4 h-4" />
+                            <span>{lang === 'hi' ? 'गोपनीयता आश्वासन:' : 'Privacy Assurance:'}</span>
+                          </div>
+                          <p className="text-slate-600 text-[11.5px] leading-snug">
+                            {lang === 'hi' ? 'शून्य डेटा संग्रह, 100% निजी' : 'Zero data retained, client-side safe'}
+                          </p>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1 shadow-2xs">
+                          <div className="flex items-center gap-1.5 text-red-600 font-bold">
+                            <AlertTriangle className="w-4 h-4" />
+                            <span>{lang === 'hi' ? 'आपातकालीन हेल्पलाइन:' : 'Emergency Escalation:'}</span>
+                          </div>
+                          <p className="text-slate-600 text-[11.5px] leading-snug">
+                            {lang === 'hi' ? 'वित्तीय धोखाधड़ी पर 1930 डायल करें' : 'Dial 1930 for financial cyber fraud'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 

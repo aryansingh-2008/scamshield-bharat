@@ -132,7 +132,7 @@ export default function EvidenceTrail({
         <div>
           <div className="flex items-center gap-2.5">
             <span className="px-2.5 py-1 rounded-md bg-safety-brand-primary text-white font-mono font-bold text-xs tracking-wider uppercase shrink-0 shadow-2xs">
-              STAGE 02
+              STAGE 04
             </span>
             <h3 className="text-base sm:text-lg font-bold text-[#17202A] font-sans tracking-tight">
               {t.evidenceTrailTitle}
