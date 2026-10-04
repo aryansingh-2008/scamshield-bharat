@@ -31,7 +31,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="light">
-      <body className="bg-console-950 text-console-100 min-h-screen flex flex-col selection:bg-safety-brand-primary/15 selection:text-safety-brand-primary">
+      <body className="bg-console-950 text-console-100 min-h-screen flex flex-col selection:bg-safety-brand-primary/15 selection:text-safety-brand-primary overflow-x-hidden">
         {children}
       </body>
     </html>

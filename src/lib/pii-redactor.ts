@@ -28,23 +28,23 @@ export function redactPII(input: string): RedactionResult {
   });
 
   // 2. Email Addresses
-  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b/g;
+  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b/g;
   text = text.replace(emailRegex, () => {
     detectedTypes.add('EMAIL');
     count++;
     return '[EMAIL REDACTED]';
   });
 
-  // 3. Indian Mobile Numbers (+91, 0, or 10-digit formats starting with 6-9)
-  const phoneRegex = /(?:\+91[-\s]?|91[-\s]?|0)?[6-9]\d{9}\b/g;
+  // 3. Indian Mobile Numbers (+91, 0, or 10-digit formats with dashes/spaces/dots)
+  const phoneRegex = /(?:\+91[-\s.]?|91[-\s.]?|0)?[6-9]\d{2}[-\s.]?\d{3}[-\s.]?\d{4}\b/g;
   text = text.replace(phoneRegex, () => {
     detectedTypes.add('PHONE NUMBER');
     count++;
     return '[PHONE NUMBER REDACTED]';
   });
 
-  // 4. UPI Handles (e.g. user@oksbi, payment@paytm, name@ybl, xyz@upi)
-  const upiRegex = /\b[a-zA-Z0-9.\-_]{2,256}@(oksbi|okhdfcbank|okicici|okaxis|paytm|ybl|ibl|axl|upi|sbi|hdfcbank|icici|barodampay|postbank)\b/gi;
+  // 4. UPI Handles (e.g. user@oksbi, payment@paytm, name@ybl, xyz@upi, etc.)
+  const upiRegex = /\b[a-zA-Z0-9.\-_]{2,256}@(oksbi|okhdfcbank|okicici|okaxis|paytm|ybl|ibl|axl|upi|sbi|hdfcbank|icici|barodampay|postbank|apl|ikwik|axisbank)\b/gi;
   text = text.replace(upiRegex, () => {
     detectedTypes.add('UPI ID');
     count++;
@@ -59,19 +59,22 @@ export function redactPII(input: string): RedactionResult {
     return match.replace(digits, '[OTP REDACTED]');
   });
 
-  // 6. Indian PAN Numbers (5 letters, 4 digits, 1 letter: e.g. ABCDE1234F)
-  const panRegex = /\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/g;
+  // 6. Indian PAN Numbers (5 letters, 4 digits, 1 letter: case-insensitive e.g. ABCDE1234F or abcde1234f)
+  const panRegex = /\b[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}\b/g;
   text = text.replace(panRegex, () => {
     detectedTypes.add('PAN CARD NUMBER');
     count++;
     return '[PAN REDACTED]';
   });
 
-  // 7. Indian Aadhaar Number format (12 digits, grouped as 4-4-4)
-  const aadhaarRegex = /\b[2-9]\d{3}[-\s]\d{4}[-\s]\d{4}\b/g;
-  text = text.replace(aadhaarRegex, () => {
+  // 7. Indian Aadhaar Number format (12 digits: formatted as 4-4-4 or prefixed with Aadhaar)
+  const aadhaarRegex = /\b[2-9]\d{3}[-\s]\d{4}[-\s]\d{4}\b|(?:\baadhaar\b[\s:#]*)([2-9]\d{11})\b/gi;
+  text = text.replace(aadhaarRegex, (match, unspacedDigits) => {
     detectedTypes.add('AADHAAR NUMBER');
     count++;
+    if (unspacedDigits) {
+      return match.replace(unspacedDigits, '[AADHAAR REDACTED]');
+    }
     return '[AADHAAR REDACTED]';
   });
 

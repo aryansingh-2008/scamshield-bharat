@@ -16,8 +16,8 @@ export default function UncertaintyCard({ items, lang }: UncertaintyCardProps) {
     <div className="rounded-xl border border-console-700 bg-white p-4 sm:p-5 space-y-3.5 shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-console-700">
         <div className="flex items-center gap-2.5">
-          <span className="px-2.5 py-1 rounded-md bg-safety-brand-primary text-white font-mono font-bold text-xs tracking-wider uppercase shrink-0 shadow-2xs">
-            STAGE 05
+          <span className="px-2.5 py-1 rounded-md bg-[#004A87] text-white font-mono font-bold text-xs tracking-wider uppercase shrink-0 shadow-2xs">
+            STAGE 04
           </span>
           <div>
             <h4 className="font-bold text-base sm:text-lg text-console-100 font-sans tracking-tight">

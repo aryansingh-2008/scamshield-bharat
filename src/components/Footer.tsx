@@ -16,7 +16,7 @@ export default function Footer({ lang }: FooterProps) {
     <footer className="w-full border-t border-console-700 bg-white mt-16 text-xs text-console-400">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-8">
         {/* Top Tier: Official Portals & Helplines */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pb-8 border-b border-console-700/60">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pb-8 border-b border-console-700/60">
           <div className="space-y-2 md:col-span-1">
             <div className="flex items-center gap-2 text-console-100 font-bold text-sm">
               <ShieldCheck className="w-5 h-5 text-safety-brand-primary" />

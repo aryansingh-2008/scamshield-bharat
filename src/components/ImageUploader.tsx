@@ -99,9 +99,9 @@ export default function ImageUploader({
         disabled={isLoading}
       />
 
-      <div className="flex flex-col md:flex-row items-stretch gap-4">
-        {/* Left: Upload area / preview */}
-        <div className="flex-1 rounded-xl border border-slate-200 bg-white p-3.5 flex flex-col justify-between min-h-[140px]">
+      <div className="space-y-3.5">
+        {/* Upload area / preview */}
+        <div className="w-full rounded-xl border border-slate-200 bg-white p-3.5 flex flex-col justify-between min-h-[140px] shadow-xs">
           {!previewUrl ? (
             <div
               onDragOver={(e) => {
@@ -175,11 +175,18 @@ export default function ImageUploader({
           )}
         </div>
 
-        {/* Right: Action Button */}
+        {error && (
+          <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
+            <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Button Placed Below Full Width */}
         <button
           type="submit"
           disabled={isLoading || !selectedFile}
-          className="md:w-56 flex md:flex-col items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold text-base bg-[#004A87] hover:bg-[#003B6D] text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all active:scale-[0.99] shrink-0 min-h-[54px] md:min-h-[140px]"
+          className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl font-bold text-base bg-[#004A87] hover:bg-[#003B6D] text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all active:scale-[0.99] cursor-pointer"
         >
           {isLoading ? (
             <span>{t.btnAnalyzing}</span>
@@ -191,13 +198,6 @@ export default function ImageUploader({
           )}
         </button>
       </div>
-
-      {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
-          <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
-          <span>{error}</span>
-        </div>
-      )}
     </form>
   );
 }

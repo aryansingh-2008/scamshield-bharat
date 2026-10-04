@@ -80,22 +80,22 @@ export default function OfficialSlideHero({ lang }: OfficialSlideHeroProps) {
           </p>
 
           {/* 4 HORIZONTAL FEATURE CARDS ROW (Exact 4-Column Grid) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 pt-2">
             {pillars.map((item, idx) => {
               const Icon = item.icon;
               return (
                 <div
                   key={idx}
-                  className="p-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-start space-y-2"
+                  className="p-2.5 sm:p-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-start space-y-1.5 sm:space-y-2 min-w-0"
                 >
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-xs ${item.iconBg}`}>
-                    <Icon className="w-4 h-4 stroke-[2.2]" />
+                  <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 shadow-xs ${item.iconBg}`}>
+                    <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[2.2]" />
                   </div>
-                  <div>
-                    <h2 className="text-xs font-bold text-[#0A1C2A] font-sans tracking-tight">
+                  <div className="min-w-0">
+                    <h2 className="text-[11px] sm:text-xs font-bold text-[#0A1C2A] font-sans tracking-tight truncate">
                       {item.title}
                     </h2>
-                    <p className="text-[11px] text-slate-500 font-sans leading-snug mt-1">
+                    <p className="text-[10px] sm:text-[11px] text-slate-500 font-sans leading-snug mt-0.5 sm:mt-1">
                       {item.desc}
                     </p>
                   </div>
@@ -106,7 +106,7 @@ export default function OfficialSlideHero({ lang }: OfficialSlideHeroProps) {
         </div>
 
         {/* RIGHT COLUMN: Realistic Device Mockups with Background Elements */}
-        <div className="lg:col-span-5 relative flex flex-col items-center justify-center pt-2 lg:pt-0">
+        <div className="lg:col-span-5 relative flex flex-col items-center justify-center pt-2 lg:pt-0 overflow-visible">
           {/* TOP RIGHT CURSIVE WATERMARK SLOGAN (Matching Reference Image) */}
           <div className="w-full text-right pr-4 pb-1 hidden sm:block pointer-events-none">
             <p className="font-serif italic text-base lg:text-lg text-[#1E4D7A] font-semibold leading-tight tracking-wide">
@@ -124,71 +124,71 @@ export default function OfficialSlideHero({ lang }: OfficialSlideHeroProps) {
       {/* REGULATORY SOURCES STRIP (White Card Bar Matching Reference Image) */}
       <div
         id="official-sources-strip"
-        className="max-w-[1340px] mx-auto rounded-2xl bg-white border border-slate-100 shadow-sm px-4 sm:px-6 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+        className="max-w-[1340px] mx-auto rounded-2xl bg-white border border-slate-100 shadow-sm px-4 sm:px-6 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4 overflow-hidden"
       >
         {/* Left: Official Logos / Emblems */}
-        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-3 sm:gap-6">
           {/* SEBI Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-9 h-6 rounded bg-[#004A87] text-white flex items-center justify-center font-black text-[11px] tracking-tighter">
+            <div className="w-8 sm:w-9 h-5 sm:h-6 rounded bg-[#004A87] text-white flex items-center justify-center font-black text-[10px] sm:text-[11px] tracking-tighter shrink-0">
               SEBI
             </div>
             <div>
-              <div className="text-[11px] font-bold text-slate-900 leading-tight">SEBI</div>
-              <div className="text-[9.5px] text-slate-500 leading-tight">
-                {isHindi ? 'भारतीय प्रतिभूति बोर्ड' : 'Securities and Exchange Board of India'}
+              <div className="text-[10.5px] sm:text-[11px] font-bold text-slate-900 leading-tight">SEBI</div>
+              <div className="text-[9px] sm:text-[9.5px] text-slate-500 leading-tight">
+                {isHindi ? 'भारतीय प्रतिभूति बोर्ड' : 'Securities & Exchange Board'}
               </div>
             </div>
           </div>
 
           {/* RBI Emblem */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-full border border-amber-700/40 bg-amber-50 flex items-center justify-center text-amber-900 font-bold text-[9px]">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 rounded-full border border-amber-700/40 bg-amber-50 flex items-center justify-center text-amber-900 font-bold text-[8px] sm:text-[9px] shrink-0">
               🏛️
             </div>
             <div>
-              <div className="text-[11px] font-bold text-slate-900 leading-tight">
+              <div className="text-[10.5px] sm:text-[11px] font-bold text-slate-900 leading-tight">
                 {isHindi ? 'भारतीय रिज़र्व बैंक' : 'Reserve Bank of India'}
               </div>
-              <div className="text-[9.5px] text-slate-500 leading-tight">RBI Sachet & Alert List</div>
+              <div className="text-[9px] sm:text-[9.5px] text-slate-500 leading-tight">RBI Sachet & Alert List</div>
             </div>
           </div>
 
           {/* CERT-In Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-8 h-5 rounded bg-[#0070BA] text-white flex items-center justify-center font-bold text-[9px]">
+            <div className="w-7 sm:w-8 h-4.5 sm:h-5 rounded bg-[#0070BA] text-white flex items-center justify-center font-bold text-[8px] sm:text-[9px] shrink-0">
               cert-in
             </div>
             <div>
-              <div className="text-[11px] font-bold text-slate-900 leading-tight">CERT-In</div>
-              <div className="text-[9.5px] text-slate-500 leading-tight">
-                {isHindi ? 'कंप्यूटर आपातकालीन टीम' : 'Indian Computer Emergency Response Team'}
+              <div className="text-[10.5px] sm:text-[11px] font-bold text-slate-900 leading-tight">CERT-In</div>
+              <div className="text-[9px] sm:text-[9.5px] text-slate-500 leading-tight">
+                {isHindi ? 'कंप्यूटर आपातकालीन टीम' : 'Emergency Response Team'}
               </div>
             </div>
           </div>
 
           {/* PIB / Gov Emblem */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-red-600 text-white flex items-center justify-center font-bold text-[8px] uppercase">
+            <div className="w-5 sm:w-6 h-5 sm:h-6 rounded bg-red-600 text-white flex items-center justify-center font-bold text-[7.5px] sm:text-[8px] uppercase shrink-0">
               PIB
             </div>
             <div>
-              <div className="text-[11px] font-bold text-slate-900 leading-tight">PIB / Gov</div>
-              <div className="text-[9.5px] text-slate-500 leading-tight">
-                {isHindi ? 'प्रेस सूचना ब्यूरो' : 'Press Information Bureau / Fact Check'}
+              <div className="text-[10.5px] sm:text-[11px] font-bold text-slate-900 leading-tight">PIB / Gov</div>
+              <div className="text-[9px] sm:text-[9.5px] text-slate-500 leading-tight">
+                {isHindi ? 'प्रेस सूचना ब्यूरो' : 'Fact Check / Gov Portal'}
               </div>
             </div>
           </div>
         </div>
 
         {/* Right: Slogan & Tricolor Indicator */}
-        <div className="text-right shrink-0 flex flex-col items-end gap-1">
-          <span className="text-xs font-bold text-slate-800 tracking-wide font-sans">
+        <div className="text-left sm:text-right shrink-0 flex flex-col sm:items-end gap-1 pt-1 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+          <span className="text-[11px] sm:text-xs font-bold text-slate-800 tracking-wide font-sans">
             {isHindi
               ? 'सुरक्षित नागरिक | पारदर्शी बाजार | सशक्त भारत'
               : 'Safer Citizens | Transparent Markets | Stronger Bharat'}
           </span>
-          <div className="h-1 w-full bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808] rounded-full border border-slate-200/60"></div>
+          <div className="h-1 w-full max-w-[280px] bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808] rounded-full border border-slate-200/60"></div>
         </div>
       </div>
     </section>

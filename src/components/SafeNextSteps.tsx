@@ -52,17 +52,20 @@ export default function SafeNextSteps({ steps, lang }: SafeNextStepsProps) {
 
   return (
     <div className="space-y-4">
-      <div className="border-b border-console-700 pb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="border-b border-slate-200 pb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="px-2.5 py-1 rounded-md bg-safety-brand-primary text-white font-mono font-bold text-xs tracking-wider uppercase shrink-0 shadow-2xs">
-            STAGE 06
+          <div className="w-7 h-7 rounded-lg bg-[#004A87] text-white flex items-center justify-center shrink-0 shadow-xs">
+            <ShieldCheck className="w-4 h-4 text-white stroke-[2.2]" />
+          </div>
+          <span className="px-2.5 py-1 rounded-md bg-[#004A87] text-white font-sans font-bold text-xs tracking-wide uppercase shrink-0 shadow-2xs">
+            {lang === 'hi' ? 'सुरक्षा कार्य योजना' : 'ACTION CHECKLIST'}
           </span>
           <h3 className="text-base sm:text-lg font-bold text-[#17202A] font-sans tracking-tight">
-            {lang === 'hi' ? 'सुरक्षित अगले कदम (Defensive Action Checklist)' : 'Safe Next Steps: Immediate Protective Protocol'}
+            {lang === 'hi' ? 'सुरक्षित अगले कदम (Defensive Action Plan)' : 'Safe Next Steps: Immediate Action Plan'}
           </h3>
         </div>
-        <span className="text-xs font-mono font-medium text-[#667085]">
-          INCIDENT RESPONSE PROTOCOL
+        <span className="text-xs font-mono font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
+          {lang === 'hi' ? '5 सुरक्षा चरण' : '5-STEP SAFETY PLAN'}
         </span>
       </div>
 
@@ -106,9 +109,9 @@ export default function SafeNextSteps({ steps, lang }: SafeNextStepsProps) {
                   {step.contactNumber && (
                     <a
                       href={`tel:${step.contactNumber}`}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-emerald-700 text-white font-bold hover:bg-emerald-800 transition-colors shadow-sm"
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-lg bg-emerald-700 text-white font-bold hover:bg-emerald-800 transition-colors shadow-sm w-full sm:w-auto text-center"
                     >
-                      <PhoneCall className="w-3.5 h-3.5" />
+                      <PhoneCall className="w-3.5 h-3.5 shrink-0" />
                       <span>
                         {lang === 'hi' ? `तुरंत कॉल करें: ${step.contactNumber}` : `Call Helpline: ${step.contactNumber}`}
                       </span>
@@ -120,10 +123,10 @@ export default function SafeNextSteps({ steps, lang }: SafeNextStepsProps) {
                       href={step.officialUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded bg-console-850 text-console-200 hover:text-console-100 hover:bg-console-700/50 font-medium transition-colors border border-console-700"
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 sm:py-1.5 rounded-lg bg-console-850 text-console-200 hover:text-console-100 hover:bg-console-700/50 font-medium transition-colors border border-console-700 w-full sm:w-auto text-center"
                     >
                       <span>{lang === 'hi' ? 'आधिकारिक पोर्टल खोलें' : 'Open Official Portal'}</span>
-                      <ExternalLink className="w-3.5 h-3.5 text-safety-brand-primary" />
+                      <ExternalLink className="w-3.5 h-3.5 text-safety-brand-primary shrink-0" />
                     </a>
                   )}
                 </div>
