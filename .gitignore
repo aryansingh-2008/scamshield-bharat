@@ -45,3 +45,10 @@ next-env.d.ts
 .vercel
 *.zip
 /scratch
+
+# Presentations, PDFs, Slides & Local Decks
+*.pptx
+*.ppt
+*.pdf
+/presentation/
+/scripts/
