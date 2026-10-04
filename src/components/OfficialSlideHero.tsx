@@ -107,16 +107,6 @@ export default function OfficialSlideHero({ lang }: OfficialSlideHeroProps) {
 
         {/* RIGHT COLUMN: Realistic Device Mockups with Background Elements */}
         <div className="lg:col-span-5 relative flex flex-col items-center justify-center pt-2 lg:pt-0 overflow-visible">
-          {/* TOP RIGHT CURSIVE WATERMARK SLOGAN (Matching Reference Image) */}
-          <div className="w-full text-right pr-4 pb-1 hidden sm:block pointer-events-none">
-            <p className="font-serif italic text-base lg:text-lg text-[#1E4D7A] font-semibold leading-tight tracking-wide">
-              Safer Citizens <br />
-              <span className="text-[#1A659E]">Transparent Markets</span> <br />
-              <span className="text-[#0B3B64]">Stronger Bharat</span>
-            </p>
-            <div className="h-0.5 w-32 ml-auto mt-1 bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808] rounded-full"></div>
-          </div>
-
           <DeviceMockupShowcase lang={lang} />
         </div>
       </div>
