@@ -84,7 +84,7 @@ export default function ImageUploader({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       <input
         ref={fileInputRef}
         type="file"
@@ -99,105 +99,105 @@ export default function ImageUploader({
         disabled={isLoading}
       />
 
-      {!previewUrl ? (
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragging(true);
-          }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`border border-dashed rounded-md p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2.5 bg-console-850/50 hover:bg-console-850 ${
-            isDragging
-              ? 'border-safety-brand-primary bg-safety-brand-subtle'
-              : 'border-console-700 hover:border-console-600'
-          }`}
-        >
-          <div className="w-10 h-10 rounded-md bg-white border border-console-700 flex items-center justify-center text-safety-brand-primary">
-            <UploadCloud className="w-5 h-5" />
-          </div>
-          <div className="space-y-0.5">
-            <p className="font-semibold text-xs sm:text-sm text-console-100">
-              {t.screenshotUploadPrompt}
-            </p>
-            <p className="text-[11px] text-console-400 font-mono">{t.screenshotFormats}</p>
-          </div>
-        </div>
-      ) : (
-        <div className="relative rounded-md border border-console-700 bg-white p-3 space-y-2.5 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-console-300 pb-2 border-b border-console-700">
-            <div className="flex items-center gap-2 truncate">
-              <ImageIcon className="w-4 h-4 text-safety-brand-primary shrink-0" />
-              <span className="font-medium truncate font-mono text-[11px] text-console-100">{selectedFile?.name}</span>
-              <span className="text-console-400 font-mono text-[10px]">
-                ({Math.round((selectedFile?.size || 0) / 1024)} KB)
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={isLoading}
-              className="p-1 rounded hover:bg-console-850 text-console-400 hover:text-console-100"
-              title="Remove screenshot"
+      <div className="flex flex-col md:flex-row items-stretch gap-4">
+        {/* Left: Upload area / preview */}
+        <div className="flex-1 rounded-xl border border-slate-200 bg-white p-3.5 flex flex-col justify-between min-h-[140px]">
+          {!previewUrl ? (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 bg-slate-50/60 hover:bg-slate-50 flex-1 ${
+                isDragging
+                  ? 'border-[#004A87] bg-[#EEF4F9]'
+                  : 'border-slate-200 hover:border-slate-300'
+              }`}
             >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+              <div className="w-9 h-9 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-[#004A87] shadow-xs">
+                <UploadCloud className="w-5 h-5" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="font-semibold text-xs text-slate-800">
+                  {t.screenshotUploadPrompt}
+                </p>
+                <p className="text-[10.5px] text-slate-400">{t.screenshotFormats}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between text-xs pb-1 border-b border-slate-100">
+                <div className="flex items-center gap-2 truncate">
+                  <ImageIcon className="w-4 h-4 text-[#004A87] shrink-0" />
+                  <span className="font-medium truncate text-xs text-slate-800">
+                    {selectedFile?.name}
+                  </span>
+                  <span className="text-slate-400 text-[10px]">
+                    ({Math.round((selectedFile?.size || 0) / 1024)} KB)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClear}
+                  disabled={isLoading}
+                  className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-red-600"
+                  title="Remove screenshot"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-          <div className="max-h-60 overflow-hidden rounded border border-console-700 bg-console-850 flex items-center justify-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewUrl}
-              alt="Screenshot Preview"
-              className="max-h-56 max-w-full object-contain rounded"
-            />
-          </div>
+              <div className="max-h-40 overflow-hidden rounded-lg border border-slate-200 bg-slate-50 flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl}
+                  alt="Screenshot Preview"
+                  className="max-h-36 max-w-full object-contain rounded"
+                />
+              </div>
 
-          <div className="space-y-1.5 pt-1">
-            <label htmlFor="screenshot-context" className="block text-xs font-medium text-console-300">
-              {lang === 'hi'
-                ? 'वैकल्पिक: स्क्रीनशॉट का मुख्य संदेश या टेक्स्ट (यदि उपलब्ध हो):'
-                : 'Optional: Extracted message text or notes from screenshot (if available):'}
-            </label>
-            <textarea
-              id="screenshot-context"
-              value={contextText}
-              onChange={(e) => setContextText(e.target.value)}
-              disabled={isLoading}
-              rows={2}
-              placeholder={
-                lang === 'hi'
-                  ? 'यदि स्क्रीनशॉट में लिखा संदेश आप पढ़ पा रहे हैं, तो त्वरित जांच के लिए यहाँ पेस्ट कर सकते हैं...'
-                  : 'If you can read key text from the image, paste or type it here for instant risk matching...'
-              }
-              className="w-full rounded-md border border-console-700 bg-white p-2.5 text-xs text-console-100 placeholder:text-console-500 focus:border-safety-brand-primary focus:outline-none focus:ring-1 focus:ring-safety-brand-primary font-sans"
-            />
-          </div>
+              <input
+                type="text"
+                value={contextText}
+                onChange={(e) => setContextText(e.target.value)}
+                disabled={isLoading}
+                placeholder={
+                  lang === 'hi'
+                    ? 'वैकल्पिक: स्क्रीनशॉट से मुख्य टेक्स्ट यहाँ टाइप करें...'
+                    : 'Optional: Extracted text or note from image...'
+                }
+                className="w-full rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none"
+              />
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Right: Action Button */}
+        <button
+          type="submit"
+          disabled={isLoading || !selectedFile}
+          className="md:w-56 flex md:flex-col items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold text-base bg-[#004A87] hover:bg-[#003B6D] text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all active:scale-[0.99] shrink-0 min-h-[54px] md:min-h-[140px]"
+        >
+          {isLoading ? (
+            <span>{t.btnAnalyzing}</span>
+          ) : (
+            <div className="flex items-center justify-center gap-2">
+              <span>{lang === 'hi' ? 'इमेज जांचें' : 'Analyze for Scams'}</span>
+              <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+            </div>
+          )}
+        </button>
+      </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-md bg-safety-high-bg border border-safety-high-border text-safety-high-text text-xs">
-          <AlertCircle className="w-4 h-4 shrink-0 text-safety-high-accent" />
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
           <span>{error}</span>
         </div>
       )}
-
-      <button
-        type="submit"
-        disabled={isLoading || !selectedFile}
-        className="w-full flex items-center justify-center gap-2 py-3 px-6 rounded-md font-semibold text-xs sm:text-sm bg-safety-brand-primary text-white hover:bg-safety-brand-secondary active:scale-[0.99] disabled:bg-[#D8DEE5] disabled:text-[#667085] disabled:cursor-not-allowed transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-safety-brand-primary"
-      >
-        {isLoading ? (
-          <span>{t.btnAnalyzing}</span>
-        ) : (
-          <>
-            <span>{t.btnAnalyze}</span>
-            <ArrowRight className="w-4 h-4" />
-          </>
-        )}
-      </button>
     </form>
   );
 }

@@ -15,7 +15,7 @@ export default function MessageInput({ lang, onAnalyze, isLoading }: MessageInpu
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const MAX_CHARS = 3000;
+  const MAX_CHARS = 5000;
 
   const handlePasteSample = () => {
     const sample = `SEBI approved investment opportunity.
@@ -42,78 +42,85 @@ Deposit ₹50,000 today to start trading.`;
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="relative space-y-1.5">
-        <label htmlFor="message-text" className="sr-only">
-          {t.tabMessage}
-        </label>
-        <textarea
-          id="message-text"
-          value={content}
-          onChange={(e) => {
-            setContent(e.target.value);
-            if (error) setError(null);
-          }}
-          maxLength={MAX_CHARS}
-          rows={6}
-          placeholder={t.placeholderMessage}
-          disabled={isLoading}
-          className="w-full rounded-md border border-console-700 bg-white p-4 text-xs sm:text-sm text-console-100 placeholder:text-console-500 focus:border-safety-brand-primary focus:outline-none focus:ring-1 focus:ring-safety-brand-primary transition-all font-sans leading-relaxed resize-y min-h-[140px]"
-        />
-
-        <div className="flex items-center justify-between text-xs text-console-400 px-1">
-          <button
-            type="button"
-            onClick={handlePasteSample}
+    <form onSubmit={handleSubmit} className="space-y-3">
+      {/* Side-by-Side Flex Layout (Matching Reference Design) */}
+      <div className="flex flex-col md:flex-row items-stretch gap-4">
+        {/* Left: Textarea Box */}
+        <div className="flex-1 relative rounded-xl border border-slate-200 bg-white p-3.5 focus-within:border-[#004A87] focus-within:ring-1 focus-within:ring-[#004A87] transition-all flex flex-col justify-between min-h-[140px]">
+          <label htmlFor="message-text" className="sr-only">
+            {t.tabMessage}
+          </label>
+          <textarea
+            id="message-text"
+            value={content}
+            onChange={(e) => {
+              setContent(e.target.value);
+              if (error) setError(null);
+            }}
+            maxLength={MAX_CHARS}
+            rows={4}
+            placeholder={
+              lang === 'hi'
+                ? 'संदेश, ईमेल या सामग्री यहाँ पेस्ट करें...'
+                : 'Paste your message, email or content here...'
+            }
             disabled={isLoading}
-            className="inline-flex items-center gap-1 text-safety-brand-primary hover:text-safety-brand-secondary font-medium transition-colors"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>{t.btnPasteSample}</span>
-          </button>
+            className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none font-sans leading-relaxed resize-none flex-1"
+          />
 
-          <span className="font-mono text-[11px] text-console-400">
-            {content.length}/{MAX_CHARS}
-          </span>
+          <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2">
+            <button
+              type="button"
+              onClick={handlePasteSample}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 text-[#004A87] hover:text-[#003B6D] font-semibold transition-colors text-xs"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{lang === 'hi' ? 'नमूना लोड करें' : 'Load Sample'}</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              {content.length > 0 && !isLoading && (
+                <button
+                  type="button"
+                  onClick={() => setContent('')}
+                  className="text-slate-400 hover:text-red-600 transition-colors flex items-center gap-1 text-xs"
+                  title={t.btnClear}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{t.btnClear}</span>
+                </button>
+              )}
+              <span className="font-mono text-[11px] text-slate-400">
+                {content.length}/{MAX_CHARS}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {error && (
-        <div className="flex items-center gap-2 p-3 rounded-md bg-safety-high-bg border border-safety-high-border text-safety-high-text text-xs">
-          <AlertCircle className="w-4 h-4 shrink-0 text-safety-high-accent" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+        {/* Right: Solid Navy Action Button */}
         <button
           type="submit"
-          disabled={isLoading || !content.trim()}
-          className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-md font-semibold text-xs sm:text-sm bg-safety-brand-primary text-white hover:bg-safety-brand-secondary active:scale-[0.99] disabled:bg-[#D8DEE5] disabled:text-[#667085] disabled:cursor-not-allowed transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-safety-brand-primary"
+          disabled={isLoading}
+          className="md:w-56 flex md:flex-col items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold text-base bg-[#004A87] hover:bg-[#003B6D] text-white shadow-md hover:shadow-lg transition-all active:scale-[0.99] shrink-0 min-h-[54px] md:min-h-[140px]"
         >
           {isLoading ? (
             <span>{t.btnAnalyzing}</span>
           ) : (
-            <>
-              <span>{t.btnAnalyze}</span>
-              <ArrowRight className="w-4 h-4" />
-            </>
+            <div className="flex items-center justify-center gap-2">
+              <span>{lang === 'hi' ? 'धोखाधड़ी जांचें' : 'Analyze for Scams'}</span>
+              <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+            </div>
           )}
         </button>
-
-        {content.length > 0 && !isLoading && (
-          <button
-            type="button"
-            onClick={() => setContent('')}
-            className="py-2.5 px-4 sm:p-3 rounded-md border border-console-700 bg-white text-console-400 hover:text-console-100 hover:bg-console-850 transition-colors flex items-center justify-center gap-1.5 text-xs font-medium"
-            title={t.btnClear}
-            aria-label={t.btnClear}
-          >
-            <Trash2 className="w-4 h-4" />
-            <span className="sm:hidden">{t.btnClear}</span>
-          </button>
-        )}
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+          <span>{error}</span>
+        </div>
+      )}
     </form>
   );
 }

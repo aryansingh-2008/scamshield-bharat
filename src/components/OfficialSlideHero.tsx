@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { AlertOctagon, FileCheck2, ShieldCheck, Users } from 'lucide-react';
+import { AlertTriangle, Search, FileText, ShieldCheck } from 'lucide-react';
+import DeviceMockupShowcase from './DeviceMockupShowcase';
 
 interface OfficialSlideHeroProps {
   lang: 'en' | 'hi';
@@ -12,127 +13,182 @@ export default function OfficialSlideHero({ lang }: OfficialSlideHeroProps) {
 
   const pillars = [
     {
-      icon: AlertOctagon,
-      title: isHindi ? 'खतरे पहचानें' : 'Detect',
+      icon: AlertTriangle,
+      title: isHindi ? 'खतरे पहचानें' : 'Detect Early',
       desc: isHindi
-        ? 'धोखाधड़ी के शुरुआती संकेतों को तुरंत पकड़ें'
-        : 'Identify scam patterns early before you act',
-      badgeColor: 'text-red-600 bg-red-50 border-red-200',
+        ? 'धोखाधड़ी के शुरुआती संकेतों को तुरंत पकड़ें।'
+        : 'Identify scam signals before you fall victim.',
+      iconBg: 'bg-[#E5484D] text-white',
     },
     {
-      icon: FileCheck2,
-      title: isHindi ? 'आधिकारिक पुष्टि' : 'Verify',
+      icon: Search,
+      title: isHindi ? 'आधिकारिक स्रोत' : 'Verify with Sources',
       desc: isHindi
-        ? 'सेबी, आरबीआई और सीईआरटी-इन से मिलान करें'
-        : 'Cross-check against SEBI, RBI, CERT-In sources',
-      badgeColor: 'text-[#164E78] bg-[#EEF4F9] border-[#164E78]/20',
+        ? 'सेबी, आरबीआई व सीईआरटी-इन से मिलान करें।'
+        : 'Grounded in SEBI, RBI, CERT-In and more.',
+      iconBg: 'bg-[#0070F3] text-white',
+    },
+    {
+      icon: FileText,
+      title: isHindi ? 'सरल भाषा' : 'Clear Language',
+      desc: isHindi
+        ? 'हिंदी व अंग्रेजी में आसान व्याख्या।'
+        : 'Simple, easy-to-understand explanations in Hindi & English.',
+      iconBg: 'bg-[#10B981] text-white',
     },
     {
       icon: ShieldCheck,
-      title: isHindi ? 'सरल व्याख्या' : 'Explain',
+      title: isHindi ? 'सुरक्षित कदम' : 'Safe Next Steps',
       desc: isHindi
-        ? 'बिना कानूनी उलझन के सरल भाषा में समझें'
-        : 'Get clear, easy-to-understand explanations',
-      badgeColor: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-    },
-    {
-      icon: Users,
-      title: isHindi ? 'सुरक्षित कदम' : 'Protect',
-      desc: isHindi
-        ? 'पैसे बचाने के सही कदम और 1930 सायबर हेल्पलाइन'
-        : 'Know safe next steps & 1930 reporting pathways',
-      badgeColor: 'text-purple-700 bg-purple-50 border-purple-200',
-    },
-  ];
-
-  const officialSources = [
-    {
-      name: isHindi ? 'सेबी (SEBI)' : 'SEBI',
-      full: isHindi ? 'भारतीय प्रतिभूति और विनिमय बोर्ड' : 'Securities & Exchange Board of India',
-    },
-    {
-      name: isHindi ? 'आरबीआई (RBI)' : 'RBI Sachet',
-      full: isHindi ? 'भारतीय रिजर्व बैंक सचेत पोर्टल' : 'Reserve Bank of India Sachet Portal',
-    },
-    {
-      name: isHindi ? 'सीईआरटी-इन' : 'CERT-In',
-      full: isHindi ? 'भारतीय कंप्यूटर आपातकालीन प्रतिक्रिया दल' : 'Indian Computer Emergency Response Team',
-    },
-    {
-      name: isHindi ? '1930 सायबर सेल' : 'Cyber Crime 1930',
-      full: isHindi ? 'राष्ट्रीय सायबर अपराध रिपोर्टिंग पोर्टल' : 'National Cyber Crime Reporting Portal',
+        ? 'पैसे बचाने के कदम व 1930 हेल्पलाइन।'
+        : 'Actionable guidance to stay protected.',
+      iconBg: 'bg-[#F5A623] text-white',
     },
   ];
 
   return (
-    <section className="space-y-4 pt-1 sm:pt-2 animate-in fade-in duration-300">
-      {/* Top National Mission Badge */}
-      <div className="flex items-center justify-center">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#EEF4F9] border border-[#164E78]/25 text-[#164E78] text-xs font-semibold tracking-wide shadow-xs">
-          <span>🇮🇳</span>
-          <span>
+    <section className="relative space-y-6 pt-2 pb-2 animate-in fade-in duration-300">
+      {/* 2-COLUMN SPLIT HERO CONTENT */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center max-w-[1340px] mx-auto relative">
+        {/* LEFT COLUMN: Mission Text + 4 Pillars Row */}
+        <div className="lg:col-span-7 space-y-4 text-left">
+          {/* Pill Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#E0EFFB] text-[#0F568C] text-[11px] font-extrabold tracking-wider uppercase border border-[#B9DCF7] shadow-2xs">
+            <span>{isHindi ? 'सुरक्षित, धोखाधड़ी-मुक्त भारत के लिए' : 'FOR A SAFER, SCAM-FREE INDIA'}</span>
+          </div>
+
+          {/* Main Headline */}
+          <h1 className="text-3xl sm:text-4xl lg:text-[45px] font-black text-[#0A1C2A] tracking-tight leading-[1.12] font-sans">
+            {isHindi ? (
+              <>
+                हर भारतीय के लिए <br />
+                <span className="text-[#004A87]">एआई-संचालित</span> धोखाधड़ी विश्लेषण
+              </>
+            ) : (
+              <>
+                AI-Powered Scam Analysis <br />
+                <span className="text-[#004A87]">for Every Indian</span>
+              </>
+            )}
+          </h1>
+
+          {/* Subtitle */}
+          <p className="text-xs sm:text-sm lg:text-[15px] text-slate-600 font-sans leading-relaxed max-w-xl">
+            {isHindi
+              ? 'धोखाधड़ी को तुरंत पहचानें, आधिकारिक विनियामक स्रोतों से पुष्टि करें, सरल भाषा में समझें और पैसे बचाने के सुरक्षित कदम उठाएं।'
+              : 'Detect scams early, verify with official sources, get clear explanations in simple language, and take safe next steps.'}
+          </p>
+
+          {/* 4 HORIZONTAL FEATURE CARDS ROW (Exact 4-Column Grid) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
+            {pillars.map((item, idx) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={idx}
+                  className="p-3.5 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-start space-y-2"
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-xs ${item.iconBg}`}>
+                    <Icon className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-bold text-[#0A1C2A] font-sans tracking-tight">
+                      {item.title}
+                    </h2>
+                    <p className="text-[11px] text-slate-500 font-sans leading-snug mt-1">
+                      {item.desc}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Realistic Device Mockups with Background Elements */}
+        <div className="lg:col-span-5 relative flex flex-col items-center justify-center pt-2 lg:pt-0">
+          {/* TOP RIGHT CURSIVE WATERMARK SLOGAN (Matching Reference Image) */}
+          <div className="w-full text-right pr-4 pb-1 hidden sm:block pointer-events-none">
+            <p className="font-serif italic text-base lg:text-lg text-[#1E4D7A] font-semibold leading-tight tracking-wide">
+              Safer Citizens <br />
+              <span className="text-[#1A659E]">Transparent Markets</span> <br />
+              <span className="text-[#0B3B64]">Stronger Bharat</span>
+            </p>
+            <div className="h-0.5 w-32 ml-auto mt-1 bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808] rounded-full"></div>
+          </div>
+
+          <DeviceMockupShowcase lang={lang} />
+        </div>
+      </div>
+
+      {/* REGULATORY SOURCES STRIP (White Card Bar Matching Reference Image) */}
+      <div
+        id="official-sources-strip"
+        className="max-w-[1340px] mx-auto rounded-2xl bg-white border border-slate-100 shadow-sm px-4 sm:px-6 py-3.5 flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+      >
+        {/* Left: Official Logos / Emblems */}
+        <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+          {/* SEBI Logo */}
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-6 rounded bg-[#004A87] text-white flex items-center justify-center font-black text-[11px] tracking-tighter">
+              SEBI
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-900 leading-tight">SEBI</div>
+              <div className="text-[9.5px] text-slate-500 leading-tight">
+                {isHindi ? 'भारतीय प्रतिभूति बोर्ड' : 'Securities and Exchange Board of India'}
+              </div>
+            </div>
+          </div>
+
+          {/* RBI Emblem */}
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full border border-amber-700/40 bg-amber-50 flex items-center justify-center text-amber-900 font-bold text-[9px]">
+              🏛️
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-900 leading-tight">
+                {isHindi ? 'भारतीय रिज़र्व बैंक' : 'Reserve Bank of India'}
+              </div>
+              <div className="text-[9.5px] text-slate-500 leading-tight">RBI Sachet & Alert List</div>
+            </div>
+          </div>
+
+          {/* CERT-In Logo */}
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-5 rounded bg-[#0070BA] text-white flex items-center justify-center font-bold text-[9px]">
+              cert-in
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-900 leading-tight">CERT-In</div>
+              <div className="text-[9.5px] text-slate-500 leading-tight">
+                {isHindi ? 'कंप्यूटर आपातकालीन टीम' : 'Indian Computer Emergency Response Team'}
+              </div>
+            </div>
+          </div>
+
+          {/* PIB / Gov Emblem */}
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded bg-red-600 text-white flex items-center justify-center font-bold text-[8px] uppercase">
+              PIB
+            </div>
+            <div>
+              <div className="text-[11px] font-bold text-slate-900 leading-tight">PIB / Gov</div>
+              <div className="text-[9.5px] text-slate-500 leading-tight">
+                {isHindi ? 'प्रेस सूचना ब्यूरो' : 'Press Information Bureau / Fact Check'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Slogan & Tricolor Indicator */}
+        <div className="text-right shrink-0 flex flex-col items-end gap-1">
+          <span className="text-xs font-bold text-slate-800 tracking-wide font-sans">
             {isHindi
               ? 'सुरक्षित नागरिक | पारदर्शी बाजार | सशक्त भारत'
               : 'Safer Citizens | Transparent Markets | Stronger Bharat'}
           </span>
-        </div>
-      </div>
-
-      {/* Main Headline & Subtitle matching Slide 1 */}
-      <div className="text-center space-y-2 max-w-3xl mx-auto">
-        <h1 className="text-2.5xl sm:text-4xl font-extrabold text-[#0B1E2D] tracking-tight leading-tight">
-          {isHindi
-            ? 'कदम उठाने से पहले दावे की जांच करें।'
-            : 'Check the claim before you act.'}
-        </h1>
-        <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed font-sans">
-          {isHindi
-            ? 'संदिग्ध वित्तीय संदेशों, व्हाट्सएप/टेलीग्राम ऑफर्स और निवेश दावों का आधिकारिक विनियामक साक्ष्यों से मिलान करें।'
-            : 'Verify suspicious financial messages, WhatsApp forwards, and investment claims against official regulatory evidence.'}
-        </p>
-      </div>
-
-      {/* 4 Feature Pillars matching Slide 1 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 max-w-4xl mx-auto pt-1">
-        {pillars.map((item, idx) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={idx}
-              className="p-3 rounded-xl bg-white border border-slate-200/90 shadow-xs hover:border-[#164E78]/40 transition-colors flex flex-col justify-between space-y-2"
-            >
-              <div className="flex items-center gap-2">
-                <div className={`p-1.5 rounded-lg border ${item.badgeColor}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                <h2 className="text-xs sm:text-sm font-bold text-slate-900 font-sans">
-                  {item.title}
-                </h2>
-              </div>
-              <p className="text-[11px] text-slate-500 font-sans leading-snug">
-                {item.desc}
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Official Sources Cross-Check Bar */}
-      <div className="max-w-4xl mx-auto rounded-xl bg-slate-50/80 border border-slate-200/80 p-3 sm:p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs text-slate-600">
-        <div className="font-semibold text-slate-900 shrink-0 flex items-center gap-1.5 text-xs">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>{isHindi ? 'आधिकारिक नियामक स्रोत:' : 'Official Regulatory Sources:'}</span>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 w-full md:w-auto">
-          {officialSources.map((src, i) => (
-            <div
-              key={i}
-              className="px-2 py-1 rounded-md bg-white border border-slate-200 text-center text-[11px] font-medium text-slate-800"
-              title={src.full}
-            >
-              {src.name}
-            </div>
-          ))}
+          <div className="h-1 w-full bg-gradient-to-r from-[#FF9933] via-[#FFFFFF] to-[#138808] rounded-full border border-slate-200/60"></div>
         </div>
       </div>
     </section>

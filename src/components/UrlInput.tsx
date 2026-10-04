@@ -43,87 +43,95 @@ export default function UrlInput({ lang, onAnalyzeUrl, isLoading }: UrlInputProp
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-1.5">
-        <label htmlFor="url-input" className="sr-only">
-          {t.tabLink}
-        </label>
-        <div className="relative flex items-center">
-          <div className="absolute left-3 text-console-400">
-            <Link2 className="w-4 h-4" />
+    <form onSubmit={handleSubmit} className="space-y-3">
+      {/* Side-by-Side Flex Layout */}
+      <div className="flex flex-col md:flex-row items-stretch gap-4">
+        {/* Left: URL Input Box */}
+        <div className="flex-1 rounded-xl border border-slate-200 bg-white p-3.5 focus-within:border-[#004A87] focus-within:ring-1 focus-within:ring-[#004A87] transition-all flex flex-col justify-between min-h-[140px]">
+          <div className="space-y-2">
+            <label htmlFor="url-input" className="sr-only">
+              {t.tabLink}
+            </label>
+            <div className="relative flex items-center">
+              <div className="absolute left-3 text-slate-400">
+                <Link2 className="w-4 h-4" />
+              </div>
+              <input
+                id="url-input"
+                type="text"
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder={
+                  lang === 'hi'
+                    ? 'जांच के लिए वेबसाइट लिंक दर्ज करें (उदा. https://...)'
+                    : 'https://suspicious-broker-link.com/invest'
+                }
+                disabled={isLoading}
+                className="w-full rounded-lg border border-slate-200 bg-slate-50/50 pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none font-mono"
+              />
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] text-slate-600 flex items-start gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <span className="font-sans leading-snug">
+                {lang === 'hi'
+                  ? 'सुरक्षा: हम कभी भी रिमोट कोड निष्पादित नहीं करते हैं। केवल सुरक्षित डोमेन प्रतिष्ठा व विनियामक सूची जांच की जाती है।'
+                  : 'Security: ScamShield never executes untrusted remote JavaScript. Only structural domain heuristics and phishing registries are analyzed.'}
+              </span>
+            </div>
           </div>
-          <input
-            id="url-input"
-            type="text"
-            value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              if (error) setError(null);
-            }}
-            placeholder={t.placeholderUrl}
-            disabled={isLoading}
-            className="w-full rounded-md border border-console-700 bg-white pl-10 pr-4 py-3 text-xs sm:text-sm text-console-100 placeholder:text-console-500 focus:border-safety-brand-primary focus:outline-none focus:ring-1 focus:ring-safety-brand-primary transition-all font-mono"
-          />
+
+          <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2">
+            <button
+              type="button"
+              onClick={handlePasteSample}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 text-[#004A87] hover:text-[#003B6D] font-semibold transition-colors text-xs"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>{lang === 'hi' ? 'नमूना URL लोड करें' : 'Load Sample URL'}</span>
+            </button>
+
+            {url.length > 0 && !isLoading && (
+              <button
+                type="button"
+                onClick={() => setUrl('')}
+                className="text-slate-400 hover:text-red-600 transition-colors flex items-center gap-1 text-xs"
+                title={t.btnClear}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>{t.btnClear}</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-console-400 px-1">
-          <button
-            type="button"
-            onClick={handlePasteSample}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1 text-safety-brand-primary hover:text-safety-brand-secondary font-medium transition-colors"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>{t.btnPasteSample}</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="p-3 rounded-md bg-console-850 border border-console-700 text-[11px] text-console-400 flex items-start gap-2">
-        <ShieldAlert className="w-4 h-4 text-safety-warning-accent shrink-0 mt-0.5" />
-        <span className="font-sans leading-relaxed">
-          {lang === 'hi'
-            ? 'सुरक्षा प्रतिबंध: हम सर्वर पर अनजान कोड को कभी निष्पादित नहीं करते हैं। केवल सुरक्षित संरचनात्मक और डोमेन प्रतिष्ठा विश्लेषण किया जाता है।'
-            : 'Security Boundary: ScamShield never executes untrusted remote JavaScript. Only structural domain heuristics and phishing registries are analyzed.'}
-        </span>
-      </div>
-
-      {error && (
-        <div className="flex items-center gap-2 p-3 rounded-md bg-safety-high-bg border border-safety-high-border text-safety-high-text text-xs">
-          <AlertCircle className="w-4 h-4 shrink-0 text-safety-high-accent" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+        {/* Right: Action Button */}
         <button
           type="submit"
           disabled={isLoading || !url.trim()}
-          className="w-full sm:flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-md font-semibold text-xs sm:text-sm bg-safety-brand-primary text-white hover:bg-safety-brand-secondary active:scale-[0.99] disabled:bg-[#D8DEE5] disabled:text-[#667085] disabled:cursor-not-allowed transition-colors shadow-xs focus:outline-none focus:ring-2 focus:ring-safety-brand-primary"
+          className="md:w-56 flex md:flex-col items-center justify-center gap-2 py-4 px-6 rounded-xl font-bold text-base bg-[#004A87] hover:bg-[#003B6D] text-white disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all active:scale-[0.99] shrink-0 min-h-[54px] md:min-h-[140px]"
         >
           {isLoading ? (
             <span>{t.btnAnalyzing}</span>
           ) : (
-            <>
-              <span>{t.btnAnalyze}</span>
-              <ArrowRight className="w-4 h-4" />
-            </>
+            <div className="flex items-center justify-center gap-2">
+              <span>{lang === 'hi' ? 'लिंक जांचें' : 'Analyze for Scams'}</span>
+              <ArrowRight className="w-5 h-5 stroke-[2.5]" />
+            </div>
           )}
         </button>
-
-        {url.length > 0 && !isLoading && (
-          <button
-            type="button"
-            onClick={() => setUrl('')}
-            className="py-2.5 px-4 sm:p-3 rounded-md border border-console-700 bg-white text-console-400 hover:text-console-100 hover:bg-console-850 transition-colors flex items-center justify-center gap-1.5 text-xs font-medium"
-            title={t.btnClear}
-            aria-label={t.btnClear}
-          >
-            <Trash2 className="w-4 h-4" />
-            <span className="sm:hidden">{t.btnClear}</span>
-          </button>
-        )}
       </div>
+
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+          <span>{error}</span>
+        </div>
+      )}
     </form>
   );
 }
