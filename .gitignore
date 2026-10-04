@@ -46,9 +46,11 @@ next-env.d.ts
 *.zip
 /scratch
 
-# Presentations, PDFs, Slides & Local Decks
+# Presentations, PDFs, Slides, Videos & Local Decks
 *.pptx
 *.ppt
 *.pdf
+*.mp4
 /presentation/
 /scripts/
+/video/
