@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import {
   ShieldCheck,
   Settings,
@@ -12,8 +13,13 @@ import {
   Info,
   Menu,
   X,
+  LogIn,
+  LogOut,
+  User,
+  Shield,
 } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
+import { useAuth } from '@/lib/auth-context';
 
 interface HeaderProps {
   lang: 'en' | 'hi';
@@ -43,6 +49,7 @@ export default function Header({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isHindi = lang === 'hi';
   const t = TRANSLATIONS[lang];
+  const { user, logout } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white shadow-xs">
@@ -191,6 +198,39 @@ export default function Header({
             </span>
           </button>
 
+          {/* Authentication Badge / Login Button */}
+          {user ? (
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs rounded-lg bg-blue-50 border border-blue-200 text-[#004A87] shadow-2xs">
+                <div className="w-5 h-5 rounded-full bg-[#004A87] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <span className="font-bold hidden md:inline truncate max-w-[110px]">
+                  {user.name}
+                </span>
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-white text-slate-600 font-mono hidden xl:inline">
+                  {user.role === 'investigator' ? 'Officer' : 'Investor'}
+                </span>
+              </div>
+              <button
+                onClick={logout}
+                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title={isHindi ? 'लॉगआउट करें' : 'Sign Out'}
+                aria-label="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/login"
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-[#004A87] hover:bg-[#003866] transition-colors shadow-2xs shrink-0"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>{isHindi ? 'लॉगिन' : 'Sign In'}</span>
+            </Link>
+          )}
+
           {/* Mobile Hamburger Toggle Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -205,6 +245,50 @@ export default function Header({
       {/* Mobile Drawer Menu */}
       {isMobileMenuOpen && (
         <div className="lg:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1.5 shadow-lg animate-in slide-in-from-top-2 duration-200">
+          {/* Mobile User Profile Section */}
+          {user ? (
+            <div className="p-3 mb-2 rounded-xl bg-blue-50/80 border border-blue-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[#004A87] text-white flex items-center justify-center font-bold text-xs">
+                  {user.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-bold text-xs text-slate-900">{user.name}</p>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    {user.role === 'investigator' ? 'Cybercrime Investigator' : 'Retail Investor'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  logout();
+                  setIsMobileMenuOpen(false);
+                }}
+                className="px-2.5 py-1 text-xs font-bold text-red-600 bg-white hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
+              >
+                {isHindi ? 'लॉगआउट' : 'Sign Out'}
+              </button>
+            </div>
+          ) : (
+            <div className="p-3 mb-2 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-800">
+                  {isHindi ? 'स्कैमशील्ड अकाउंट' : 'ScamShield Account'}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {isHindi ? 'लॉगिन वैकल्पिक है (Skippable)' : 'Login is optional (Skippable)'}
+                </p>
+              </div>
+              <Link
+                href="/login"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="px-3 py-1.5 text-xs font-bold text-white bg-[#004A87] rounded-lg shadow-xs"
+              >
+                {isHindi ? 'लॉगिन करें' : 'Sign In'}
+              </Link>
+            </div>
+          )}
+
           <button
             onClick={() => {
               setIsMobileMenuOpen(false);
@@ -278,4 +362,3 @@ export default function Header({
     </header>
   );
 }
-

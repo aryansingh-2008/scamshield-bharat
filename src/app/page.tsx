@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 import Header from '@/components/Header';
 import OfficialSlideHero from '@/components/OfficialSlideHero';
 import PrivacyNotice from '@/components/PrivacyNotice';
@@ -38,7 +40,9 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
+  const { user, isSkipped, skipLogin } = useAuth();
   const [lang, setLang] = useState<'en' | 'hi'>('en');
+  const isHindi = lang === 'hi';
   const [currentView, setCurrentView] = useState<'home' | 'sources'>('home');
   const [activeTab, setActiveTab] = useState<'text' | 'screenshot' | 'url' | 'demo'>('text');
   const [isLoading, setIsLoading] = useState(false);
@@ -250,6 +254,63 @@ export default function HomePage() {
         onNavigateSources={() => setCurrentView('sources')}
         onTriggerDemo={() => scrollToInput('demo')}
       />
+      {/* Skippable Login Welcome Banner (Shown only if not logged in and not skipped) */}
+      {!user && !isSkipped && (
+        <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-amber-50 border-b border-blue-200/80 px-4 py-2.5 transition-all">
+          <div className="max-w-[1340px] mx-auto flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-2 text-slate-800">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="font-bold text-[#004A87]">
+                {isHindi ? 'वैकल्पिक लॉगिन:' : 'Optional Login:'}
+              </span>
+              <span className="text-slate-700">
+                {isHindi
+                  ? 'स्कैमशील्ड भारत का उपयोग बिना लॉगिन किए सीधे किया जा सकता है।'
+                  : 'You can use ScamShield Bharat directly without logging in.'}
+              </span>
+              <span className="hidden md:inline text-slate-500">
+                {isHindi
+                  ? '(जांच हिस्ट्री सहेजने के लिए लॉगिन कर सकते हैं)'
+                  : '(Sign in only if you wish to track your audit records)'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                href="/login"
+                className="px-3 py-1 font-bold text-white bg-[#004A87] hover:bg-[#003866] rounded-lg transition-colors shadow-2xs"
+              >
+                {isHindi ? 'लॉगिन करें' : 'Sign In'}
+              </Link>
+              <button
+                onClick={skipLogin}
+                className="px-3 py-1 font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition-colors shadow-2xs"
+              >
+                {isHindi ? 'छोड़ें (Skip)' : 'Skip for Now'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active User Session Indicator */}
+      {user && (
+        <div className="bg-emerald-50/70 border-b border-emerald-200/70 px-4 py-1.5 text-xs text-emerald-900">
+          <div className="max-w-[1340px] mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+              <span className="font-semibold">
+                {isHindi ? 'सक्रिय सत्र:' : 'Active Session:'}
+              </span>
+              <span>
+                {user.name} ({user.designation || (user.role === 'investigator' ? 'Cyber Investigator' : 'Retail Investor')})
+              </span>
+            </div>
+            <span className="text-[11px] text-emerald-700 font-mono hidden sm:inline">
+              {user.organization || 'Verified Session'}
+            </span>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 max-w-[1340px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-3 sm:py-6 space-y-6">
         {/* =======================================================
