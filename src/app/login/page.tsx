@@ -20,16 +20,16 @@ import {
   Building2,
   FileCheck2,
 } from 'lucide-react';
-import { useAuth, DEMO_USERS } from '@/lib/auth-context';
+import { useAuth } from '@/lib/auth-context';
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect') || '/';
-  const { login, loginAsDemo, skipLogin, user } = useAuth();
+  const { login, skipLogin, user } = useAuth();
 
   const [lang, setLang] = useState<'en' | 'hi'>('en');
-  const [activeTab, setActiveTab] = useState<'demo' | 'credentials' | 'signup'>('demo');
+  const [activeTab, setActiveTab] = useState<'credentials' | 'signup'>('credentials');
   
   // Credentials Form State
   const [identifier, setIdentifier] = useState('');
@@ -52,10 +52,7 @@ function LoginContent() {
     router.push(redirectPath);
   };
 
-  const handleDemoLogin = (type: 'investor' | 'investigator') => {
-    loginAsDemo(type);
-    router.push(redirectPath);
-  };
+
 
   const handleSendOtp = () => {
     if (!identifier.trim()) {
@@ -216,17 +213,6 @@ function LoginContent() {
           {/* Navigation Tabs */}
           <div className="flex border-b border-slate-200 bg-slate-50/70 p-1.5 gap-1.5 text-xs font-semibold">
             <button
-              onClick={() => { setActiveTab('demo'); setAuthError(null); }}
-              className={`flex-1 py-2 rounded-lg text-center transition-all ${
-                activeTab === 'demo'
-                  ? 'bg-white text-[#004A87] font-bold shadow-xs border border-slate-200'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-              }`}
-            >
-              ⚡ {isHindi ? '1-क्लिक डेमो लॉगिन' : '1-Click Demo Login'}
-            </button>
-
-            <button
               onClick={() => { setActiveTab('credentials'); setAuthError(null); }}
               className={`flex-1 py-2 rounded-lg text-center transition-all ${
                 activeTab === 'credentials'
@@ -234,7 +220,7 @@ function LoginContent() {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              📱 {isHindi ? 'मोबाइल / ईमेल' : 'Mobile / Email'}
+              📱 {isHindi ? 'मोबाइल / ईमेल से लॉगिन' : 'Sign In with Mobile / Email'}
             </button>
 
             <button
@@ -245,7 +231,7 @@ function LoginContent() {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              ✨ {isHindi ? 'नया खाता' : 'New Account'}
+              ✨ {isHindi ? 'नया खाता बनाएं' : 'Create New Account'}
             </button>
           </div>
 
@@ -255,87 +241,6 @@ function LoginContent() {
               <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 flex items-center gap-2 text-xs text-red-700">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                 <span>{authError}</span>
-              </div>
-            )}
-
-            {/* TAB 1: 1-Click Demo Logins */}
-            {activeTab === 'demo' && (
-              <div className="space-y-4">
-                <p className="text-xs text-slate-500">
-                  {isHindi
-                    ? 'हैकथॉन जूरी व टेस्टर्स के लिए तुरंत 1-क्लिक एक्सेस:'
-                    : 'Instant 1-click profiles for hackathon judges and evaluators:'}
-                </p>
-
-                {/* Profile 1: Retail Investor */}
-                <div
-                  onClick={() => handleDemoLogin('investor')}
-                  className="p-4 rounded-xl border-2 border-slate-200 hover:border-[#004A87] bg-white hover:bg-blue-50/30 transition-all cursor-pointer group shadow-2xs"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-[#004A87] font-bold group-hover:scale-105 transition-transform">
-                        <User className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-sm text-slate-900 group-hover:text-[#004A87]">
-                            {DEMO_USERS.investor.name}
-                          </h3>
-                          <span className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-800 rounded">
-                            {isHindi ? 'सत्यापित निवेशक' : 'Verified Investor'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {DEMO_USERS.investor.designation}
-                        </p>
-                        <p className="text-[11px] text-slate-400 font-mono mt-1">
-                          {DEMO_USERS.investor.emailOrPhone}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      className="px-3 py-1.5 text-xs font-bold text-white bg-[#004A87] rounded-lg group-hover:bg-[#003866] transition-colors shrink-0"
-                    >
-                      {isHindi ? 'लॉगिन करें' : 'Sign In'} ➔
-                    </button>
-                  </div>
-                </div>
-
-                {/* Profile 2: Cybercrime Investigator */}
-                <div
-                  onClick={() => handleDemoLogin('investigator')}
-                  className="p-4 rounded-xl border-2 border-slate-200 hover:border-emerald-600 bg-white hover:bg-emerald-50/30 transition-all cursor-pointer group shadow-2xs"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold group-hover:scale-105 transition-transform">
-                        <Shield className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-sm text-slate-900 group-hover:text-emerald-700">
-                            {DEMO_USERS.investigator.name}
-                          </h3>
-                          <span className="px-2 py-0.5 text-[10px] font-semibold bg-emerald-100 text-emerald-800 rounded">
-                            {isHindi ? 'साइबर सेल अधिकारी' : 'Cybercell Officer'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {DEMO_USERS.investigator.organization}
-                        </p>
-                        <p className="text-[11px] text-slate-400 font-mono mt-1">
-                          {DEMO_USERS.investigator.emailOrPhone}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-700 rounded-lg group-hover:bg-emerald-800 transition-colors shrink-0"
-                    >
-                      {isHindi ? 'लॉगिन करें' : 'Sign In'} ➔
-                    </button>
-                  </div>
-                </div>
               </div>
             )}
 
