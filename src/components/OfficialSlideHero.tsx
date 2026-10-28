@@ -61,13 +61,11 @@ export default function OfficialSlideHero({ lang }: OfficialSlideHeroProps) {
           <h1 className="text-3xl sm:text-4xl lg:text-[45px] font-black text-[#0A1C2A] tracking-tight leading-[1.12] font-sans">
             {isHindi ? (
               <>
-                हर भारतीय के लिए <br />
                 <span className="text-[#004A87]">एआई-संचालित</span> धोखाधड़ी विश्लेषण
               </>
             ) : (
               <>
-                AI-Powered Scam Analysis <br />
-                <span className="text-[#004A87]">for Every Indian</span>
+                AI-Powered <span className="text-[#004A87]">Scam Analysis</span>
               </>
             )}
           </h1>
