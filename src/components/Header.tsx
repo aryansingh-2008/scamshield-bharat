@@ -208,9 +208,7 @@ export default function Header({
                 <span className="font-bold hidden md:inline truncate max-w-[110px]">
                   {user.name}
                 </span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-white text-slate-600 font-mono hidden xl:inline">
-                  {user.role === 'investigator' ? 'Officer' : 'Investor'}
-                </span>
+
               </div>
               <button
                 onClick={logout}
@@ -254,8 +252,8 @@ export default function Header({
                 </div>
                 <div>
                   <p className="font-bold text-xs text-slate-900">{user.name}</p>
-                  <p className="text-[11px] text-slate-500 font-mono">
-                    {user.role === 'investigator' ? 'Cybercrime Investigator' : 'Retail Investor'}
+                  <p className="text-[11px] text-slate-500 truncate">
+                    {user.emailOrPhone || 'Verified Account'}
                   </p>
                 </div>
               </div>

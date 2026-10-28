@@ -43,7 +43,7 @@ function LoginContent() {
   // Signup State
   const [signupName, setSignupName] = useState('');
   const [signupContact, setSignupContact] = useState('');
-  const [signupRole, setSignupRole] = useState<'investor' | 'investigator'>('investor');
+  
 
   const isHindi = lang === 'hi';
 
@@ -101,9 +101,9 @@ function LoginContent() {
       login({
         name: signupName,
         emailOrPhone: signupContact,
-        role: signupRole,
-        designation: signupRole === 'investor' ? 'Retail Investor (NSE/BSE)' : 'Cybercrime & Compliance Auditor',
-        organization: signupRole === 'investor' ? 'Self-Directed Investor' : 'Cyber Security Wing',
+        role: 'investor',
+        designation: 'Verified Member',
+        organization: 'ScamShield Bharat',
         verified: true,
       });
       setIsSubmitting(false);
@@ -382,35 +382,7 @@ function LoginContent() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    {isHindi ? 'उपयोगकर्ता प्रकार' : 'User Role'}
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setSignupRole('investor')}
-                      className={`p-2 rounded-lg border text-left transition-all ${
-                        signupRole === 'investor'
-                          ? 'border-[#004A87] bg-blue-50/60 font-bold text-[#004A87]'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      👤 {isHindi ? 'रिटेल निवेशक' : 'Retail Investor'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSignupRole('investigator')}
-                      className={`p-2 rounded-lg border text-left transition-all ${
-                        signupRole === 'investigator'
-                          ? 'border-emerald-700 bg-emerald-50/60 font-bold text-emerald-800'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      🛡️ {isHindi ? 'साइबर सेल / ऑडिटर' : 'Auditor / Officer'}
-                    </button>
-                  </div>
-                </div>
+
 
                 <button
                   type="submit"

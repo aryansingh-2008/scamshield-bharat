@@ -301,8 +301,8 @@ export default function HomePage() {
               <span className="font-semibold">
                 {isHindi ? 'सक्रिय सत्र:' : 'Active Session:'}
               </span>
-              <span>
-                {user.name} ({user.designation || (user.role === 'investigator' ? 'Cyber Investigator' : 'Retail Investor')})
+              <span className="font-bold">
+                {user.name}
               </span>
             </div>
             <span className="text-[11px] text-emerald-700 font-mono hidden sm:inline">
