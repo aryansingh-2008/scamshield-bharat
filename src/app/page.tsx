@@ -563,6 +563,7 @@ export default function HomePage() {
                   piiRedacted={analysisResult.piiRedacted}
                   isDemo={analysisResult.isDemoAnalysis}
                   lang={lang}
+                  riskScore={analysisResult.riskScore}
                   stats={
                     showTechnicalDetails
                       ? {

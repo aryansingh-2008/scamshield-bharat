@@ -73,4 +73,23 @@ describe('ScamShield Risk Engine Unit Tests', () => {
       expect(demo.analysisResult.evidence.length).toBeGreaterThan(0);
     }
   });
+
+  it('should compute calibrated numeric risk percentage scores', () => {
+    // 1. Critical scam input (Guaranteed returns + UPI payment)
+    const scamInput = 'Guaranteed 30% monthly return. Pay ₹50,000 to personal UPI id.';
+    const scamResult = runDeterministicRiskAnalysis(scamInput);
+    expect(scamResult.riskScore).toBeDefined();
+    expect(scamResult.riskScore).toBeGreaterThanOrEqual(78);
+    expect(scamResult.riskScore).toBeLessThanOrEqual(99);
+
+    // 2. Safe neutral content
+    const safeInput = 'Mutual funds are subject to market risks. Read all scheme related documents carefully before investing.';
+    const safeResult = runDeterministicRiskAnalysis(safeInput);
+    expect(safeResult.riskScore).toBeDefined();
+    expect(safeResult.riskScore).toBeLessThanOrEqual(15);
+
+    // 3. Insufficient content
+    const insufficientResult = runDeterministicRiskAnalysis('hi');
+    expect(insufficientResult.riskScore).toBe(0);
+  });
 });

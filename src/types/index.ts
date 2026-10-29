@@ -114,6 +114,7 @@ export interface AnalysisResponse {
   id: string;
   timestamp: string;
   status: RiskLevel;
+  riskScore?: number;
   headlineSummary: string;
   headlineSummaryHi: string;
   detailedExplanation: string;

@@ -432,6 +432,7 @@ export function runDeterministicRiskAnalysis(
       id,
       timestamp,
       status: 'UNABLE_TO_ASSESS',
+      riskScore: 0,
       headlineSummary: isScreenshot
         ? 'Unable to Assess: No readable text extracted from image.'
         : 'Unable to Assess: Input content is insufficient for safety analysis.',
@@ -732,10 +733,30 @@ export function runDeterministicRiskAnalysis(
       'इस सामग्री में कोई खतरनाक संकेत नहीं मिला। फिर भी किसी भी वित्तीय लेन-देन से पहले भेजने वाले की पहचान की पुष्टि अवश्य करें।';
   }
 
+  // 11. Deterministic Numeric Risk Percentage (0% - 100%)
+  const lowCount = detectedSignals.filter((s) => s.severity === 'LOW').length;
+  let riskScore = 0;
+  if (status === 'HIGH_CONCERN') {
+    const base = 78;
+    const added = criticalCount * 9 + highCount * 5 + mediumCount * 2;
+    riskScore = Math.min(99, Math.max(78, base + added));
+  } else if (status === 'NEEDS_VERIFICATION') {
+    const base = 35;
+    const added = highCount * 12 + mediumCount * 6 + lowCount * 3;
+    riskScore = Math.min(68, Math.max(35, base + added));
+  } else if (status === 'LOW_CONCERN') {
+    const base = 5;
+    const added = detectedSignals.length * 2;
+    riskScore = Math.min(15, Math.max(4, base + added));
+  } else {
+    riskScore = 0;
+  }
+
   return {
     id,
     timestamp,
     status,
+    riskScore,
     headlineSummary,
     headlineSummaryHi,
     detailedExplanation,
