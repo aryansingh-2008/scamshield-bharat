@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowRight, Trash2, FileText, AlertCircle } from 'lucide-react';
+import { ArrowRight, Trash2, AlertCircle } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 
 interface MessageInputProps {
@@ -16,16 +16,6 @@ export default function MessageInput({ lang, onAnalyze, isLoading }: MessageInpu
   const [error, setError] = useState<string | null>(null);
 
   const MAX_CHARS = 5000;
-
-  const handlePasteSample = () => {
-    const sample = `SEBI approved investment opportunity.
-Guaranteed 30% monthly return.
-Only 20 seats left.
-Join our Telegram group now: https://t.me/sebi_vip_wealth
-Deposit ₹50,000 today to start trading.`;
-    setContent(sample);
-    setError(null);
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,17 +56,7 @@ Deposit ₹50,000 today to start trading.`;
           className="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none font-sans leading-relaxed resize-none flex-1"
         />
 
-        <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2">
-          <button
-            type="button"
-            onClick={handlePasteSample}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1.5 text-[#004A87] hover:text-[#003B6D] font-semibold transition-colors text-xs cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>{lang === 'hi' ? 'नमूना लोड करें' : 'Load Sample'}</span>
-          </button>
-
+        <div className="flex items-center justify-end text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2">
           <div className="flex items-center gap-3">
             {content.length > 0 && !isLoading && (
               <button

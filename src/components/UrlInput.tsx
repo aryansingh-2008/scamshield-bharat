@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Link2, ArrowRight, ShieldAlert, FileText, AlertCircle, Trash2 } from 'lucide-react';
+import { Link2, ArrowRight, ShieldAlert, AlertCircle, Trash2 } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 import { validateAndParseUrl } from '@/lib/url-security';
 
@@ -15,11 +15,6 @@ export default function UrlInput({ lang, onAnalyzeUrl, isLoading }: UrlInputProp
   const t = TRANSLATIONS[lang];
   const [url, setUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  const handlePasteSample = () => {
-    setUrl('https://kyc-update-portal.xyz/verify-trading-account');
-    setError(null);
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,17 +77,7 @@ export default function UrlInput({ lang, onAnalyzeUrl, isLoading }: UrlInputProp
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2">
-          <button
-            type="button"
-            onClick={handlePasteSample}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1.5 text-[#004A87] hover:text-[#003B6D] font-semibold transition-colors text-xs cursor-pointer"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span>{lang === 'hi' ? 'नमूना URL लोड करें' : 'Load Sample URL'}</span>
-          </button>
-
+        <div className="flex items-center justify-end text-xs text-slate-400 pt-2 border-t border-slate-100 mt-2">
           {url.length > 0 && !isLoading && (
             <button
               type="button"

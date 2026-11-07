@@ -470,57 +470,6 @@ export default function HomePage() {
                     </div>
                   )}
 
-                  {/* Try an Example Quick Bar */}
-                  <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-bold text-slate-800 text-[12px] shrink-0 mr-1">
-                      {lang === 'hi' ? 'उदाहरण आज़माएं:' : 'Try an example:'}
-                    </span>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchTab('demo');
-                        handleSelectDemo('scenario-1');
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-[#EEF4F9] text-slate-700 hover:text-[#004A87] border border-slate-200 text-[11.5px] font-medium transition-colors"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5 text-[#004A87]" />
-                      <span>{lang === 'hi' ? 'गारंटीड 30% रिटर्न' : 'You’ve won ₹5,00,000!'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchTab('demo');
-                        handleSelectDemo('scenario-2');
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-[#EEF4F9] text-slate-700 hover:text-[#004A87] border border-slate-200 text-[11.5px] font-medium transition-colors"
-                    >
-                      <Link2 className="w-3.5 h-3.5 text-[#004A87]" />
-                      <span>{lang === 'hi' ? 'sbi-reward.com लिंक' : 'sbi-reward.com'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchTab('demo');
-                        handleSelectDemo('scenario-3');
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-[#EEF4F9] text-slate-700 hover:text-[#004A87] border border-slate-200 text-[11.5px] font-medium transition-colors"
-                    >
-                      <FileText className="w-3.5 h-3.5 text-[#004A87]" />
-                      <span>{lang === 'hi' ? 'फर्जी KYC संदेश' : 'KYC update message'}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => switchTab('screenshot')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-[#EEF4F9] text-slate-700 hover:text-[#004A87] border border-slate-200 text-[11.5px] font-medium transition-colors"
-                    >
-                      <ImageIcon className="w-3.5 h-3.5 text-[#004A87]" />
-                      <span>{lang === 'hi' ? 'संदिग्ध स्क्रीनशॉट' : 'Suspicious screenshot'}</span>
-                    </button>
-                  </div>
                 </div>
               </section>
             )}
