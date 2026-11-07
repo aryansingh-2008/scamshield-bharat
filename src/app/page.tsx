@@ -21,6 +21,7 @@ import ArchitectureModal from '@/components/ArchitectureModal';
 import SecurityModal from '@/components/SecurityModal';
 import SafetyTipsModal from '@/components/SafetyTipsModal';
 import AboutModal from '@/components/AboutModal';
+import SmartRiskWarningModal from '@/components/SmartRiskWarningModal';
 import OfficialSourcesPage from '@/components/OfficialSourcesPage';
 import Footer from '@/components/Footer';
 import { TRANSLATIONS } from '@/lib/translations';
@@ -33,6 +34,7 @@ import {
   PlayCircle,
   RotateCcw,
   AlertTriangle,
+  ShieldAlert,
   Lock,
   ShieldCheck,
   Layers,
@@ -65,6 +67,7 @@ export default function HomePage() {
   const [isSafetyTipsOpen, setIsSafetyTipsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
+  const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
 
   const inputSectionRef = useRef<HTMLDivElement>(null);
   const resultsSectionRef = useRef<HTMLDivElement>(null);
@@ -116,6 +119,7 @@ export default function HomePage() {
 
       setAnalysisResult(data);
       setIsLoading(false);
+      setIsRiskModalOpen(true);
 
       requestAnimationFrame(() => {
         resultsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -186,6 +190,7 @@ export default function HomePage() {
   const handleResetCheck = () => {
     setCurrentView('home');
     setAnalysisResult(null);
+    setIsRiskModalOpen(false);
     setErrorMessage(null);
     setTimeout(() => {
       inputSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -544,13 +549,24 @@ export default function HomePage() {
                     </span>
                   </div>
 
-                  <button
-                    onClick={handleResetCheck}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:border-[#004A87] text-slate-700 hover:text-[#004A87] transition-colors shadow-xs"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>{t.btnNewCheck}</span>
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => setIsRiskModalOpen(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors shadow-xs"
+                      title={lang === 'hi' ? 'सुरक्षा चेतावनी पॉप-अप देखें' : 'View Security Advisory Popup'}
+                    >
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
+                      <span>{lang === 'hi' ? 'सुरक्षा चेतावनी पॉप-अप' : 'View Risk Warning'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleResetCheck}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:border-[#004A87] text-slate-700 hover:text-[#004A87] transition-colors shadow-xs"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>{t.btnNewCheck}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* 1. EXECUTIVE RISK VERDICT HERO (Instant 3-Second Comprehension) */}
@@ -822,6 +838,16 @@ export default function HomePage() {
         onClose={() => setIsSecurityOpen(false)}
         lang={lang}
       />
+
+      {analysisResult && (
+        <SmartRiskWarningModal
+          isOpen={isRiskModalOpen}
+          onClose={() => setIsRiskModalOpen(false)}
+          onGoBack={handleResetCheck}
+          lang={lang}
+          analysisResult={analysisResult}
+        />
+      )}
     </div>
   );
 }
