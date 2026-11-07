@@ -12,29 +12,17 @@ export interface OfficialSource {
 }
 
 export const OFFICIAL_SOURCES: Record<string, OfficialSource> = {
-  SANGYAN_WEBSITE: {
-    id: 'SANGYAN_WEBSITE',
-    name: 'SANGYAN Official Website',
-    nameHi: 'संज्ञान आधिकारिक वेबसाइट',
-    url: 'https://sangyan.sntciitbhu.co.in/',
-    category: 'organizer',
-    purpose: 'Hackathon information / organizer context',
-    purposeHi: 'हैकाथॉन संदर्भ एवं आयोजक जानकारी',
-    sourceType: 'organizer',
+  CHAKSHU_PORTAL: {
+    id: 'CHAKSHU_PORTAL',
+    name: 'DoT Chakshu Portal (Suspected Fraud Reporting)',
+    nameHi: 'दूरसंचार विभाग चक्षु पोर्टल (संदिग्ध धोखाधड़ी रिपोर्टिंग)',
+    url: 'https://sancharsaathi.gov.in/sfc/',
+    category: 'cybercrime',
+    purpose: 'Citizen reporting of suspected fraud communications (calls/SMS/WhatsApp) to Department of Telecommunications',
+    purposeHi: 'संदिग्ध कॉल, एसएमएस या व्हाट्सएप संदेशों की रिपोर्टिंग हेतु दूरसंचार विभाग का आधिकारिक पोर्टल',
+    sourceType: 'cybercrime_portal',
     verifiedAt: '2026-10-03',
-    status: 'VERIFIED_BY_ORGANIZER',
-  },
-  SANGYAN_DISCORD: {
-    id: 'SANGYAN_DISCORD',
-    name: 'SANGYAN Official Discord',
-    nameHi: 'संज्ञान आधिकारिक डिस्कॉर्ड',
-    url: 'https://discord.gg/Q69UG3cWq',
-    category: 'organizer',
-    purpose: 'Official community / participant charter support link',
-    purposeHi: 'आधिकारिक कम्युनिटी / प्रतिभागी सपोर्ट लिंक',
-    sourceType: 'organizer',
-    verifiedAt: '2026-10-03',
-    status: 'VERIFIED_BY_ORGANIZER',
+    status: 'VERIFIED',
   },
   SEBI_INTERMEDIARIES: {
     id: 'SEBI_INTERMEDIARIES',

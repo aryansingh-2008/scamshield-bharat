@@ -124,12 +124,12 @@ export default function Footer({ lang }: FooterProps) {
               </li>
               <li>
                 <a
-                  href={OFFICIAL_SOURCES.SANGYAN_WEBSITE.url}
+                  href={OFFICIAL_SOURCES.CHAKSHU_PORTAL.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-console-400 hover:text-console-100"
+                  className="inline-flex items-center gap-1 text-safety-brand-primary hover:underline"
                 >
-                  <span>SANGYAN IIT BHU Hackathon</span>
+                  <span>DoT Chakshu Portal</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               </li>

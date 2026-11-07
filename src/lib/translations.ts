@@ -67,7 +67,7 @@ export const TRANSLATIONS = {
       'ScamShield Bharat is an independent educational and safety verification tool. It is not an investment advisor, stock broker, or regulatory body. Never execute financial transactions without independent verification.',
     demoTitle: 'Choose a Deterministic Demo Scenario',
     demoDesc: 'Explore how ScamShield analyzes real-world financial threats in 3 seconds.',
-    footerCopyright: '© 2026 ScamShield Bharat. Built for Indian Investor Protection & Hackathon MVP.',
+    footerCopyright: '© 2026 ScamShield Bharat. Built for Indian Investor Protection & Financial Cyber Resilience.',
     archTitle: 'System Architecture & Data Flow',
     secTitle: 'Security & Privacy Blueprint',
     evidenceTrailTitle: 'Evidence Trail: Claim Cross-Examination',
