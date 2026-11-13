@@ -62,9 +62,9 @@ export const TRANSLATIONS = {
     btnListen: 'Listen Audio',
     btnStopListen: 'Stop Audio',
     btnNewCheck: 'Check Another Message',
-    disclaimerTitle: 'Important Investor Notice',
+    disclaimerTitle: 'Statutory Investor Notice',
     disclaimerText:
-      'ScamShield Bharat is an independent educational and safety verification tool. It is not an investment advisor, stock broker, or regulatory body. Never execute financial transactions without independent verification.',
+      'ScamShield Bharat is an independent civic education and heuristic safety verification tool. It is NOT an investment advisor (RIA), research analyst (RA), broker, or government regulatory body under SEBI or RBI. All financial transactions must be independently verified on official regulatory portals (SEBI SCORES / RBI Sachet / 1930).',
     demoTitle: 'Choose a Deterministic Demo Scenario',
     demoDesc: 'Explore how ScamShield analyzes real-world financial threats in 3 seconds.',
     footerCopyright: '© 2026 ScamShield Bharat. Built for Indian Investor Protection & Financial Cyber Resilience.',
@@ -145,9 +145,9 @@ export const TRANSLATIONS = {
     btnListen: '🔊 सुनें (Audio)',
     btnStopListen: '⏹️ बंद करें',
     btnNewCheck: 'दूसरा संदेश जांचें',
-    disclaimerTitle: 'महत्वपूर्ण निवेशक सूचना',
+    disclaimerTitle: 'सांविधिक निवेशक सूचना (Statutory Notice)',
     disclaimerText:
-      'स्कैमशील्ड भारत एक स्वतंत्र शैक्षिक सुरक्षा सहायक है। यह कोई निवेश सलाहकार या विनियामक संस्था नहीं है। बिना स्वतंत्र जांच के कभी कोई लेन-देन न करें।',
+      'स्कैमशील्ड भारत एक स्वतंत्र नागरिक शैक्षिक व साइबर-सुरक्षा सत्यापन साधन है। यह सेबी (SEBI) या आरबीआई (RBI) के तहत कोई अधिकृत निवेश सलाहकार, रिसर्च एनालिस्ट, स्टॉक ब्रोकर या सरकारी निकाय नहीं है। वित्तीय लेन-देन से पूर्व हमेशा आधिकारिक विनियामक पोर्टलों (SEBI / RBI / 1930) से स्वतंत्र पुष्टि अवश्य करें।',
     demoTitle: 'डेमो परिदृश्य चुनें',
     demoDesc: 'देखें कि स्कैमशील्ड 3 सेकंड में वास्तविक वित्तीय खतरों का विश्लेषण कैसे करता है।',
     footerCopyright: '© 2026 स्कैमशील्ड भारत। भारतीय निवेशकों की सुरक्षा हेतु निर्मित।',

@@ -17,6 +17,7 @@ import {
   LogOut,
   User,
   Shield,
+  Scale,
 } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 import { useAuth } from '@/lib/auth-context';
@@ -29,6 +30,7 @@ interface HeaderProps {
   onOpenSafetyTips?: () => void;
   onOpenAbout?: () => void;
   onOpenSecurity?: () => void;
+  onOpenTerms?: () => void;
   onNavigateHome: () => void;
   onNavigateSources?: () => void;
   onTriggerDemo?: () => void;
@@ -42,6 +44,7 @@ export default function Header({
   onOpenSafetyTips,
   onOpenAbout,
   onOpenSecurity,
+  onOpenTerms,
   onNavigateHome,
   onNavigateSources,
   onTriggerDemo,
@@ -53,6 +56,26 @@ export default function Header({
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white shadow-xs">
+      {/* Statutory Civic Awareness Top Bar */}
+      <div className="w-full bg-[#07131F] text-slate-300 text-[10.5px] py-1 px-3 sm:px-6 lg:px-8 flex items-center justify-between border-b border-slate-800">
+        <div className="flex items-center gap-2 truncate">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+          <span className="truncate">
+            {isHindi
+              ? 'स्वतंत्र नागरिक सुरक्षा साधन • भारत सरकार या सेबी से संबद्ध नहीं • आपातकालीन साइबर हेल्पलाइन: 1930'
+              : 'Independent Civic Safety Platform • Not Affiliated with Govt of India or SEBI • National Helpline: 1930'}
+          </span>
+        </div>
+        {onOpenTerms && (
+          <button
+            onClick={onOpenTerms}
+            className="text-amber-400 hover:text-amber-300 font-semibold underline text-[10.5px] shrink-0 ml-3 cursor-pointer"
+          >
+            {isHindi ? 'कानूनी नियम व अस्वीकरण' : 'Terms & Disclaimers'}
+          </button>
+        )}
+      </div>
+
       <div className="max-w-[1340px] mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
         {/* Left Brand Identity */}
         <div className="relative flex items-center h-full min-w-0 pr-1 sm:pr-0">
@@ -353,6 +376,19 @@ export default function Header({
             >
               <Info className="w-4 h-4 text-slate-400" />
               <span>{isHindi ? 'हमारे बारे में' : 'About ScamShield Bharat'}</span>
+            </button>
+          )}
+
+          {onOpenTerms && (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenTerms();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 rounded-lg text-left transition-colors"
+            >
+              <Scale className="w-4 h-4 text-amber-600" />
+              <span>{isHindi ? 'कानूनी नियम व अस्वीकरण' : 'Terms & Disclaimers'}</span>
             </button>
           )}
         </div>

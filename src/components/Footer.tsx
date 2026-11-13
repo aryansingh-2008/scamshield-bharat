@@ -1,15 +1,16 @@
 'use client';
 
 import React from 'react';
-import { ShieldCheck, PhoneCall, ExternalLink, AlertCircle } from 'lucide-react';
+import { ShieldCheck, PhoneCall, ExternalLink, AlertCircle, Scale, Mail } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 import { OFFICIAL_SOURCES, CYBERCRIME_HELPLINE } from '@/lib/official-sources';
 
 interface FooterProps {
   lang: 'en' | 'hi';
+  onOpenTerms?: () => void;
 }
 
-export default function Footer({ lang }: FooterProps) {
+export default function Footer({ lang, onOpenTerms }: FooterProps) {
   const t = TRANSLATIONS[lang];
 
   return (
@@ -146,6 +147,48 @@ export default function Footer({ lang }: FooterProps) {
             </strong>
             {t.disclaimerText}
           </p>
+        </div>
+
+        {/* Compliance & Grievance Bar */}
+        <div className="pt-4 border-t border-console-700/60 flex flex-col md:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-semibold text-slate-700">
+              {lang === 'hi' ? 'सांविधिक अनुपालन:' : 'Statutory Compliance:'}
+            </span>
+            <span className="inline-flex items-center gap-1 text-slate-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              DPDP Act 2023 (Zero-DB)
+            </span>
+            <span className="text-slate-300">•</span>
+            <span className="inline-flex items-center gap-1 text-slate-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              IT Act 2000 (Sec 79 Safe Harbor)
+            </span>
+            <span className="text-slate-300">•</span>
+            <span className="inline-flex items-center gap-1 text-slate-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+              SEBI RIA Regs 2013 (Non-Advisory)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {onOpenTerms && (
+              <button
+                onClick={onOpenTerms}
+                className="text-[#004A87] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>{lang === 'hi' ? 'सेवा की शर्तें व अस्वीकरण' : 'Terms & Legal Disclaimer'}</span>
+              </button>
+            )}
+            <a
+              href="mailto:contact@scamshieldbharat.live"
+              className="text-slate-600 hover:text-slate-900 flex items-center gap-1 hover:underline"
+            >
+              <Mail className="w-3.5 h-3.5 text-slate-400" />
+              <span>Grievance / Contact</span>
+            </a>
+          </div>
         </div>
 
         {/* Copyright & Badges */}

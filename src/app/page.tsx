@@ -21,6 +21,7 @@ import ArchitectureModal from '@/components/ArchitectureModal';
 import SecurityModal from '@/components/SecurityModal';
 import SafetyTipsModal from '@/components/SafetyTipsModal';
 import AboutModal from '@/components/AboutModal';
+import TermsModal from '@/components/TermsModal';
 import SmartRiskWarningModal from '@/components/SmartRiskWarningModal';
 import OfficialSourcesPage from '@/components/OfficialSourcesPage';
 import Footer from '@/components/Footer';
@@ -67,6 +68,7 @@ export default function HomePage() {
   const [isSafetyTipsOpen, setIsSafetyTipsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
 
   const inputSectionRef = useRef<HTMLDivElement>(null);
@@ -255,6 +257,7 @@ export default function HomePage() {
         onOpenSafetyTips={() => setIsSafetyTipsOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         onOpenSecurity={() => setIsSecurityOpen(true)}
+        onOpenTerms={() => setIsTermsOpen(true)}
         onNavigateHome={handleResetCheck}
         onNavigateSources={() => setCurrentView('sources')}
         onTriggerDemo={() => scrollToInput('demo')}
@@ -761,7 +764,7 @@ export default function HomePage() {
       </main>
 
       {/* Footer */}
-      <Footer lang={lang} />
+      <Footer lang={lang} onOpenTerms={() => setIsTermsOpen(true)} />
 
       {/* Modals */}
       <ArchitectureModal
@@ -785,6 +788,12 @@ export default function HomePage() {
       <SecurityModal
         isOpen={isSecurityOpen}
         onClose={() => setIsSecurityOpen(false)}
+        lang={lang}
+      />
+
+      <TermsModal
+        isOpen={isTermsOpen}
+        onClose={() => setIsTermsOpen(false)}
         lang={lang}
       />
 
