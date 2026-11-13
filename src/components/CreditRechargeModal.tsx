@@ -51,19 +51,34 @@ export default function CreditRechargeModal({
 
   if (!isOpen) return null;
 
+  // Seamless Transition: When checkout is active, render ONLY the Payment Window (No double-modal stacking)
+  if (isCheckoutOpen) {
+    return (
+      <PaymentCheckoutModal
+        isOpen={true}
+        onClose={() => setIsCheckoutOpen(false)}
+        lang={lang}
+        initialPlan={checkoutPlan}
+        onPaymentSuccess={() => {
+          setIsCheckoutOpen(false);
+          onClose();
+        }}
+      />
+    );
+  }
+
   const handleOpenPayment = (plan: PlanType) => {
     setCheckoutPlan(plan);
     setIsCheckoutOpen(true);
   };
 
   return (
-    <>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recharge-modal-title"
-        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in"
-      >
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="recharge-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in"
+    >
         <div className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl border border-slate-200 bg-white p-5 sm:p-7 space-y-5 shadow-2xl">
           {/* Header */}
           <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
@@ -390,18 +405,5 @@ export default function CreditRechargeModal({
           </div>
         </div>
       </div>
-
-      {/* Realistic Indian Payment Gateway Window (Razorpay / Bharat UPI) */}
-      <PaymentCheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        lang={lang}
-        initialPlan={checkoutPlan}
-        onPaymentSuccess={() => {
-          setIsCheckoutOpen(false);
-          onClose();
-        }}
-      />
-    </>
   );
 }

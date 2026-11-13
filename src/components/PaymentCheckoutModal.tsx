@@ -116,6 +116,7 @@ export default function PaymentCheckoutModal({
   const [cardExpiry, setCardExpiry] = useState('');
   const [cardCvv, setCardCvv] = useState('');
   const [cardName, setCardName] = useState('');
+  const [cardError, setCardError] = useState<string | null>(null);
   const [selectedBank, setSelectedBank] = useState('sbi');
 
   // Processing & Success states
@@ -144,10 +145,12 @@ export default function PaymentCheckoutModal({
     }
   }, []);
 
-  // Generate Real Scannable UPI QR Code whenever plan or recipient UPI changes
+  // Generate Real Scannable UPI QR Code (Keeping literal @ in pa= for NPCI UPI app compatibility)
   useEffect(() => {
     const currentPlan = PLANS[selectedPlan];
-    const upiUri = `upi://pay?pa=${encodeURIComponent(recipientUpi)}&pn=ScamShield%20Bharat&am=${currentPlan.price}&cu=INR&tn=${encodeURIComponent(`ScamShield ${currentPlan.nameEn}`)}`;
+    const cleanUpi = recipientUpi.trim();
+    // In NPCI standard, pa must retain literal '@', while name and note are safely encoded
+    const upiUri = `upi://pay?pa=${cleanUpi}&pn=${encodeURIComponent('ScamShield Bharat')}&am=${currentPlan.price}&cu=INR&tn=${encodeURIComponent(`ScamShield ${currentPlan.nameEn}`)}`;
 
     QRCode.toDataURL(upiUri, {
       width: 260,
@@ -168,6 +171,7 @@ export default function PaymentCheckoutModal({
       setProcessingStatus('');
       setEnteredUtr('');
       setUtrError(null);
+      setCardError(null);
       setSecondsRemaining(299);
       const now = new Date();
       setPaymentTime(
@@ -203,7 +207,8 @@ export default function PaymentCheckoutModal({
   if (!isOpen) return null;
 
   const currentPlan = PLANS[selectedPlan];
-  const upiIntentUri = `upi://pay?pa=${encodeURIComponent(recipientUpi)}&pn=ScamShield%20Bharat&am=${currentPlan.price}&cu=INR&tn=${encodeURIComponent(`ScamShield ${currentPlan.nameEn}`)}`;
+  const cleanUpi = recipientUpi.trim();
+  const upiIntentUri = `upi://pay?pa=${cleanUpi}&pn=${encodeURIComponent('ScamShield Bharat')}&am=${currentPlan.price}&cu=INR&tn=${encodeURIComponent(`ScamShield ${currentPlan.nameEn}`)}`;
 
   const handleCopyUpi = () => {
     navigator.clipboard?.writeText(recipientUpi);
@@ -213,12 +218,13 @@ export default function PaymentCheckoutModal({
 
   const handleSaveCustomUpi = () => {
     const clean = customUpiInput.trim();
-    if (clean && clean.includes('@')) {
+    if (clean && clean.includes('@') && clean.length > 5) {
       setRecipientUpi(clean);
       if (typeof window !== 'undefined') {
         localStorage.setItem('scamshield_merchant_upi', clean);
       }
       setIsEditingUpi(false);
+      setCustomUpiInput('');
     }
   };
 
@@ -254,7 +260,7 @@ export default function PaymentCheckoutModal({
         } catch {}
       }
 
-      // Apply plan to auth context
+      // Apply plan benefits to auth context
       if (selectedPlan === 'sachet') {
         addCredits(15);
       } else if (selectedPlan === 'pro') {
@@ -263,10 +269,8 @@ export default function PaymentCheckoutModal({
         activateUnlimited(365);
       }
 
+      // Transition to official receipt screen (Do NOT auto-close modal; let user see receipt & click Continue)
       setPaymentStep('success');
-      if (onPaymentSuccess) {
-        onPaymentSuccess(selectedPlan);
-      }
     }, 2400);
   };
 
@@ -305,6 +309,43 @@ export default function PaymentCheckoutModal({
   const handleInstantSimulate = () => {
     const randomUtr = `43${Math.floor(1000000000 + Math.random() * 9000000000)}`;
     executePaymentWithUtr(randomUtr, 'Instant Test Simulation');
+  };
+
+  const handleFillDemoCard = () => {
+    setCardNumber('4532 8192 0192 8891');
+    setCardExpiry('12/28');
+    setCardCvv('786');
+    setCardName('ARYAN SINGH');
+    setCardError(null);
+  };
+
+  const handleCardSubmit = () => {
+    const digitsOnly = cardNumber.replace(/\D/g, '');
+    if (digitsOnly.length !== 16) {
+      setCardError(
+        isHindi
+          ? 'कृपया पूरा 16-अंकों का कार्ड नंबर दर्ज करें।'
+          : 'Please enter a valid 16-digit card number.'
+      );
+      return;
+    }
+    if (cardExpiry.length < 5 || !cardExpiry.includes('/')) {
+      setCardError(
+        isHindi
+          ? 'कृपया वैध समाप्ति तिथि (MM/YY) दर्ज करें।'
+          : 'Please enter a valid expiry date (MM/YY).'
+      );
+      return;
+    }
+    if (cardCvv.length < 3) {
+      setCardError(
+        isHindi ? 'कृपया 3-अंकों का CVV दर्ज करें।' : 'Please enter 3-digit CVV.'
+      );
+      return;
+    }
+    setCardError(null);
+    const cardUtr = `43${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+    executePaymentWithUtr(cardUtr, 'Debit / Credit Card (3D Secure)');
   };
 
   const handleDownloadReceipt = () => {
@@ -576,7 +617,10 @@ Thank you for securing yourself and your family with ScamShield Bharat!
                           </span>
                           <button
                             type="button"
-                            onClick={() => setIsEditingUpi(!isEditingUpi)}
+                            onClick={() => {
+                              setIsEditingUpi(!isEditingUpi);
+                              if (!isEditingUpi) setCustomUpiInput(recipientUpi);
+                            }}
                             className="text-[10px] font-bold text-[#004A87] hover:underline cursor-pointer"
                           >
                             {isEditingUpi ? (isHindi ? 'रद्द करें' : 'Cancel') : (isHindi ? '✏️ बदलें' : '✏️ Set UPI')}
@@ -687,16 +731,16 @@ Thank you for securing yourself and your family with ScamShield Bharat!
                           }}
                           placeholder={
                             isHindi
-                              ? '12 अंकों का UTR नंबर (उदा. 439281029384)'
-                              : 'Enter 12-digit UTR (e.g. 439281029384)'
+                              ? '12-अंकों का UTR नंबर दर्ज करें'
+                              : 'Enter 12-digit UTR number'
                           }
-                          className={`w-full pl-9 pr-3 py-2.5 text-xs rounded-xl border font-mono tracking-widest text-slate-900 focus:outline-none focus:ring-2 ${
+                          className={`w-full pl-9 pr-16 py-2.5 text-xs rounded-xl border font-mono tracking-widest text-slate-900 focus:outline-none focus:ring-2 ${
                             utrError
                               ? 'border-red-400 focus:ring-red-400 bg-red-50/30'
                               : 'border-slate-300 focus:ring-[#004A87]'
                           }`}
                         />
-                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-400">
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono font-bold text-slate-400">
                           {enteredUtr.length}/12
                         </span>
                       </div>
@@ -736,8 +780,21 @@ Thank you for securing yourself and your family with ScamShield Bharat!
               {/* TAB CONTENT 2: CARDS */}
               {activeTab === 'card' && (
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3.5 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-700">
+                      {isHindi ? 'डेबिट / क्रेडिट कार्ड विवरण:' : 'Card Details:'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleFillDemoCard}
+                      className="text-[10px] font-bold text-blue-700 hover:underline cursor-pointer"
+                    >
+                      ⚡ {isHindi ? 'डेमो कार्ड भरें (Fill Demo)' : 'Fill Demo Card'}
+                    </button>
+                  </div>
+
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">
                       {isHindi ? 'कार्ड नंबर (Card Number):' : 'Card Number:'}
                     </label>
                     <div className="relative">
@@ -749,6 +806,7 @@ Thank you for securing yourself and your family with ScamShield Bharat!
                           const val = e.target.value.replace(/\D/g, '').slice(0, 16);
                           const formatted = val.replace(/(.{4})/g, '$1 ').trim();
                           setCardNumber(formatted);
+                          if (cardError) setCardError(null);
                         }}
                         placeholder="4532 •••• •••• 8891"
                         className="w-full px-3 py-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#004A87] font-mono tracking-wider"
@@ -763,7 +821,7 @@ Thank you for securing yourself and your family with ScamShield Bharat!
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
                         {isHindi ? 'समाप्ति तिथि (MM / YY):' : 'Expiry Date (MM/YY):'}
                       </label>
                       <input
@@ -776,20 +834,24 @@ Thank you for securing yourself and your family with ScamShield Bharat!
                             val = `${val.slice(0, 2)}/${val.slice(2)}`;
                           }
                           setCardExpiry(val);
+                          if (cardError) setCardError(null);
                         }}
                         placeholder="MM/YY"
                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#004A87] font-mono text-center"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      <label className="block text-[10px] font-bold text-slate-600 mb-1">
                         CVV / CVC:
                       </label>
                       <input
                         type="password"
                         maxLength={3}
                         value={cardCvv}
-                        onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                        onChange={(e) => {
+                          setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 3));
+                          if (cardError) setCardError(null);
+                        }}
                         placeholder="•••"
                         className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#004A87] font-mono text-center tracking-widest"
                       />
@@ -797,24 +859,28 @@ Thank you for securing yourself and your family with ScamShield Bharat!
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1">
                       {isHindi ? 'कार्डधारक का नाम:' : 'Cardholder Name:'}
                     </label>
                     <input
                       type="text"
                       value={cardName}
                       onChange={(e) => setCardName(e.target.value)}
-                      placeholder="e.g. AMIT KUMAR"
+                      placeholder="e.g. ARYAN SINGH"
                       className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#004A87] uppercase"
                     />
                   </div>
 
+                  {cardError && (
+                    <p className="text-[11px] text-red-600 font-bold flex items-center gap-1">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      <span>{cardError}</span>
+                    </p>
+                  )}
+
                   <button
                     type="button"
-                    onClick={() => {
-                      const dummyUtr = `43${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-                      executePaymentWithUtr(dummyUtr, 'Debit / Credit Card');
-                    }}
+                    onClick={handleCardSubmit}
                     className="w-full py-2.5 px-4 rounded-xl bg-[#004A87] hover:bg-[#003866] text-white font-extrabold text-xs transition-colors shadow-md flex items-center justify-center gap-2 cursor-pointer active:scale-98"
                   >
                     <Lock className="w-3.5 h-3.5" />
@@ -995,7 +1061,12 @@ Thank you for securing yourself and your family with ScamShield Bharat!
 
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={() => {
+                    onClose();
+                    if (onPaymentSuccess) {
+                      onPaymentSuccess(selectedPlan);
+                    }
+                  }}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-[#004A87] hover:bg-[#003866] text-white font-extrabold text-xs transition-colors shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <ShieldCheck className="w-4 h-4" />
