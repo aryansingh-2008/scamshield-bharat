@@ -206,6 +206,10 @@ export default function AdminPage() {
   };
 
   const handleOpenEditModal = (c: RegisteredCitizen) => {
+    if (c.uid === CHIEF_ADMIN_UID) {
+      showNotification('सुरक्षा नियम: मुख्य व्यवस्थापक (Chief Admin) स्थायी है — इसका पद अपरिवर्तनीय व सुरक्षित है।');
+      return;
+    }
     setSelectedCitizenForEdit(c);
     setEditName(c.name);
     setEditDesignation(c.designation);
@@ -812,58 +816,59 @@ export default function AdminPage() {
                         {/* Quick Admin Actions & Governance */}
                         <td className="py-3.5 px-4 text-right whitespace-nowrap min-w-[280px]">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleAddCredits(c.uid, 15)}
-                              className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold border border-slate-300 transition-colors cursor-pointer"
-                              title="Add 15 Credits"
-                            >
-                              +15 Scans
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleSetPlan(c.uid, c.isUnlimited ? 'free' : 'pro')
-                              }
-                              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
-                                c.isUnlimited
-                                  ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                                  : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
-                              }`}
-                              title={c.isUnlimited ? 'Revoke Pro' : 'Grant Pro Pass'}
-                            >
-                              {c.isUnlimited ? 'Revoke' : '👑 Pro'}
-                            </button>
-
-                            {/* Appoint Post & Role Button */}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditModal(c)}
-                              className="px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 text-[#004A87] text-[10px] font-bold border border-blue-200 transition-colors cursor-pointer flex items-center gap-1"
-                              title="पद व रोल नियुक्त करें / Appoint Post"
-                            >
-                              <Award className="w-3 h-3 text-[#004A87]" />
-                              <span>पद बदलें</span>
-                            </button>
-
-                            {/* Delete Action or Immutable Immunity Badge for Chief Admin */}
+                            {/* Chief Admin: Permanent Root Authority (Cannot be modified, revoked, or deleted) */}
                             {c.uid === CHIEF_ADMIN_UID ? (
                               <span
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-mono font-black shadow-2xs select-none"
-                                title="मुख्य व्यवस्थापक (Chief Admin - Aryan Singh) का खाता पूर्णतः सुरक्षित है — इसे किसी के द्वारा भी हटाया या बदला नहीं जा सकता (Root Authority Immunity)"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-100 via-amber-50 to-amber-100 text-amber-950 border border-amber-300 text-[11px] font-mono font-black shadow-xs select-none"
+                                title="मुख्य व्यवस्थापक (Chief Admin - Aryan Singh) स्थायी है — इसे किसी भी तरीके से हटाया या बदला नहीं जा सकता"
                               >
-                                <Lock className="w-3 h-3 text-amber-600 shrink-0" />
-                                <span>सुरक्षित रूट (Immune)</span>
+                                <Crown className="w-3.5 h-3.5 text-amber-700" />
+                                <span>स्थायी मुख्य व्यवस्थापक (Permanent Root)</span>
                               </span>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => setDeleteConfirmCitizen(c)}
-                                className="p-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 transition-colors cursor-pointer"
-                                title={`खाता हटाएं (${c.name})`}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddCredits(c.uid, 15)}
+                                  className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold border border-slate-300 transition-colors cursor-pointer"
+                                  title="Add 15 Credits"
+                                >
+                                  +15 Scans
+                                </button>
+
+                                {/* Only show Pro activation if not already unlimited (NO REVOKE OPTION) */}
+                                {!c.isUnlimited && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetPlan(c.uid, 'pro')}
+                                    className="px-2.5 py-1 rounded text-[10px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition-colors cursor-pointer"
+                                    title="Grant Pro Pass"
+                                  >
+                                    👑 +Pro Pass
+                                  </button>
+                                )}
+
+                                {/* Appoint Post & Role Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditModal(c)}
+                                  className="px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 text-[#004A87] text-[10px] font-bold border border-blue-200 transition-colors cursor-pointer flex items-center gap-1"
+                                  title="पद व रोल नियुक्त करें / Appoint Post"
+                                >
+                                  <Award className="w-3 h-3 text-[#004A87]" />
+                                  <span>पद बदलें</span>
+                                </button>
+
+                                {/* Delete Action for non-root accounts */}
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteConfirmCitizen(c)}
+                                  className="p-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 transition-colors cursor-pointer"
+                                  title={`खाता हटाएं (${c.name})`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>

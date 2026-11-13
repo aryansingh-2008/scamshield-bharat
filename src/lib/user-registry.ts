@@ -211,13 +211,23 @@ export function getAllCitizens(): RegisteredCitizen[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return INITIAL_CITIZENS;
 
-    // Ensure Chief Admin account is permanently present and immutable (Root Authority)
+    // Ensure Chief Admin account is permanently present, immutable, and forever Unlimited
     let modified = false;
-    const chiefExists = parsed.some((c: RegisteredCitizen) => c.uid === 'SSB-ADMIN-0001');
-    if (!chiefExists) {
-      const chief = INITIAL_CITIZENS.find((c) => c.uid === 'SSB-ADMIN-0001')!;
-      parsed.unshift(chief);
+    const chiefIdx = parsed.findIndex((c: RegisteredCitizen) => c.uid === 'SSB-ADMIN-0001');
+    const permanentChief = INITIAL_CITIZENS.find((c) => c.uid === 'SSB-ADMIN-0001')!;
+
+    if (chiefIdx === -1) {
+      parsed.unshift({ ...permanentChief, isUnlimited: true, planType: 'annual', credits: 9999 });
       modified = true;
+    } else {
+      // Hard enforce permanence and unlimited access on Chief Admin
+      if (!parsed[chiefIdx].isUnlimited || parsed[chiefIdx].role !== 'admin') {
+        parsed[chiefIdx].role = 'admin';
+        parsed[chiefIdx].isUnlimited = true;
+        parsed[chiefIdx].planType = 'annual';
+        parsed[chiefIdx].credits = 9999;
+        modified = true;
+      }
     }
     if (modified) {
       localStorage.setItem(STORAGE_KEY_CITIZENS, JSON.stringify(parsed));
@@ -425,6 +435,10 @@ export function adminSetSubscription(
   uid: string,
   plan: 'free' | 'sachet' | 'pro' | 'annual'
 ): boolean {
+  if (uid === CHIEF_ADMIN_UID) {
+    // Chief Admin is permanent and can never be downgraded
+    return true;
+  }
   const citizens = getAllCitizens();
   const citizen = citizens.find((c) => c.uid === uid);
   if (!citizen) return false;
@@ -496,11 +510,11 @@ export function adminAppointPost(
     return { success: false, message: 'नागरिक खाता नहीं मिला (Account not found).' };
   }
 
-  // Chief Admin role cannot be demoted
-  if (targetUid === CHIEF_ADMIN_UID && updates.role !== 'admin') {
+  // Chief Admin is permanent and immutable
+  if (targetUid === CHIEF_ADMIN_UID) {
     return {
       success: false,
-      message: 'मुख्य व्यवस्थापक (Chief Admin) के रोल को डिमोट नहीं किया जा सकता।',
+      message: 'मुख्य व्यवस्थापक (Chief Admin) स्थायी है — इसका पद अपरिवर्तनीय व सुरक्षित है।',
     };
   }
 
