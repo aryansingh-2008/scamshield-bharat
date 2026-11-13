@@ -211,13 +211,13 @@ export function getAllCitizens(): RegisteredCitizen[] {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return INITIAL_CITIZENS;
 
-    // Ensure executive leadership accounts (President & Chief Admin) always exist in registry
+    // Ensure Chief Admin account is permanently present and immutable (Root Authority)
     let modified = false;
-    for (const exec of INITIAL_CITIZENS) {
-      if (!parsed.some((c: RegisteredCitizen) => c.uid === exec.uid)) {
-        parsed.unshift(exec);
-        modified = true;
-      }
+    const chiefExists = parsed.some((c: RegisteredCitizen) => c.uid === 'SSB-ADMIN-0001');
+    if (!chiefExists) {
+      const chief = INITIAL_CITIZENS.find((c) => c.uid === 'SSB-ADMIN-0001')!;
+      parsed.unshift(chief);
+      modified = true;
     }
     if (modified) {
       localStorage.setItem(STORAGE_KEY_CITIZENS, JSON.stringify(parsed));
@@ -446,6 +446,122 @@ export function adminSetSubscription(
   citizen.lastActiveAt = new Date().toISOString();
   saveCitizens(citizens);
   return true;
+}
+
+// Chief Administrator UID - Root Authority with Permanent Immunity
+export const CHIEF_ADMIN_UID = 'SSB-ADMIN-0001';
+
+// Admin deletes a citizen or official account (Chief Admin CANNOT be deleted by anyone)
+export function adminDeleteCitizen(
+  targetUid: string
+): { success: boolean; message: string } {
+  if (targetUid === CHIEF_ADMIN_UID) {
+    return {
+      success: false,
+      message: 'सुरक्षा नियम: मुख्य व्यवस्थापक (Chief Admin - Aryan Singh) को किसी के द्वारा भी डिलीट नहीं किया जा सकता। यह रूट खाता अपरिवर्तनीय व स्थायी रूप से सुरक्षित है।',
+    };
+  }
+
+  const citizens = getAllCitizens();
+  const idx = citizens.findIndex((c) => c.uid === targetUid);
+  if (idx === -1) {
+    return { success: false, message: 'नागरिक खाता नहीं मिला (Account not found).' };
+  }
+
+  const deletedUser = citizens[idx];
+  citizens.splice(idx, 1);
+  saveCitizens(citizens);
+
+  return {
+    success: true,
+    message: `खाता '${deletedUser.name}' (${targetUid}) सफलतापूर्वक हटा दिया गया।`,
+  };
+}
+
+// Admin appoints a post / designation or alters role for any member
+export function adminAppointPost(
+  targetUid: string,
+  updates: {
+    name?: string;
+    role: 'admin' | 'investigator' | 'investor';
+    designation: string;
+    organization?: string;
+    credits?: number;
+    isUnlimited?: boolean;
+  }
+): { success: boolean; message: string } {
+  const citizens = getAllCitizens();
+  const citizen = citizens.find((c) => c.uid === targetUid);
+  if (!citizen) {
+    return { success: false, message: 'नागरिक खाता नहीं मिला (Account not found).' };
+  }
+
+  // Chief Admin role cannot be demoted
+  if (targetUid === CHIEF_ADMIN_UID && updates.role !== 'admin') {
+    return {
+      success: false,
+      message: 'मुख्य व्यवस्थापक (Chief Admin) के रोल को डिमोट नहीं किया जा सकता।',
+    };
+  }
+
+  if (updates.name && updates.name.trim()) {
+    citizen.name = updates.name.trim();
+  }
+  citizen.role = updates.role;
+  citizen.designation = updates.designation.trim() || citizen.designation;
+  if (updates.organization) citizen.organization = updates.organization.trim();
+  if (updates.credits !== undefined) citizen.credits = updates.credits;
+  if (updates.isUnlimited !== undefined) {
+    citizen.isUnlimited = updates.isUnlimited;
+    if (updates.isUnlimited) {
+      citizen.unlimitedExpiresAt = Date.now() + 365 * 24 * 60 * 60 * 1000;
+      citizen.planType = 'annual';
+    }
+  }
+  citizen.lastActiveAt = new Date().toISOString();
+  saveCitizens(citizens);
+
+  return {
+    success: true,
+    message: `${citizen.name} को सफलतापूर्वक '${updates.designation}' (${updates.role.toUpperCase()}) नियुक्त कर दिया गया।`,
+  };
+}
+
+// Admin creates and appoints a new official member or citizen
+export function adminCreateCitizen(data: {
+  name: string;
+  emailOrPhone: string;
+  role: 'admin' | 'investigator' | 'investor';
+  designation: string;
+  organization?: string;
+  isUnlimited?: boolean;
+  credits?: number;
+}): RegisteredCitizen {
+  const citizens = getAllCitizens();
+  const newUid = generateCitizenId();
+  const newCitizen: RegisteredCitizen = {
+    uid: newUid,
+    name: data.name.trim(),
+    emailOrPhone: data.emailOrPhone.trim(),
+    role: data.role,
+    designation: data.designation.trim() || 'Verified Official Member',
+    organization: data.organization?.trim() || 'ScamShield Bharat (IIT BHU)',
+    credits: data.credits ?? (data.isUnlimited || data.role === 'admin' ? 9999 : 25),
+    isUnlimited: data.isUnlimited ?? (data.role === 'admin'),
+    unlimitedExpiresAt:
+      data.isUnlimited || data.role === 'admin'
+        ? Date.now() + 365 * 24 * 60 * 60 * 1000
+        : null,
+    planType: data.isUnlimited || data.role === 'admin' ? 'annual' : 'sachet',
+    registeredAt: new Date().toISOString(),
+    lastActiveAt: new Date().toISOString(),
+    totalScans: 0,
+    isVerified: true,
+  };
+
+  citizens.unshift(newCitizen);
+  saveCitizens(citizens);
+  return newCitizen;
 }
 
 // Get aggregate platform stats for Admin

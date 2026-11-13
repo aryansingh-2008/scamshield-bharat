@@ -34,11 +34,17 @@ import {
   Save,
   Hash,
   X,
+  Trash2,
+  UserPlus,
+  Award,
+  AlertTriangle,
+  UserCheck,
 } from 'lucide-react';
 import { useAuth, MASTER_ADMIN_USER, verifyAdminPasskey } from '@/lib/auth-context';
 import {
   RegisteredCitizen,
   UtrTransaction,
+  CHIEF_ADMIN_UID,
   getAllCitizens,
   saveCitizens,
   getAllUtrTransactions,
@@ -46,6 +52,9 @@ import {
   adminRejectUtr,
   adminAdjustCredits,
   adminSetSubscription,
+  adminDeleteCitizen,
+  adminAppointPost,
+  adminCreateCitizen,
   getPlatformAdminStats,
 } from '@/lib/user-registry';
 
@@ -87,6 +96,29 @@ export default function AdminPage() {
 
   // Status Action Notice
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  // Modals for Chief Admin Powers (Add, Appoint Post, Delete)
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedCitizenForEdit, setSelectedCitizenForEdit] = useState<RegisteredCitizen | null>(null);
+  const [deleteConfirmCitizen, setDeleteConfirmCitizen] = useState<RegisteredCitizen | null>(null);
+
+  // Form State for Add Member
+  const [addName, setAddName] = useState('');
+  const [addContact, setAddContact] = useState('');
+  const [addDesignation, setAddDesignation] = useState('');
+  const [addRole, setAddRole] = useState<'admin' | 'investigator' | 'investor'>('investor');
+  const [addOrg, setAddOrg] = useState('ScamShield Bharat (IIT BHU)');
+  const [addUnlimited, setAddUnlimited] = useState(false);
+  const [addCredits, setAddCredits] = useState(25);
+
+  // Form State for Edit Post
+  const [editName, setEditName] = useState('');
+  const [editDesignation, setEditDesignation] = useState('');
+  const [editRole, setEditRole] = useState<'admin' | 'investigator' | 'investor'>('investor');
+  const [editOrg, setEditOrg] = useState('');
+  const [editCredits, setEditCredits] = useState(5);
+  const [editUnlimited, setEditUnlimited] = useState(false);
 
   const reloadData = () => {
     const allC = getAllCitizens();
@@ -171,6 +203,73 @@ export default function AdminPage() {
     adminSetSubscription(uid, plan);
     reloadData();
     showNotification(`Subscription updated to ${plan.toUpperCase()} for ${uid}`);
+  };
+
+  const handleOpenEditModal = (c: RegisteredCitizen) => {
+    setSelectedCitizenForEdit(c);
+    setEditName(c.name);
+    setEditDesignation(c.designation);
+    setEditRole(c.role === 'admin' || c.role === 'investigator' ? c.role : 'investor');
+    setEditOrg(c.organization);
+    setEditCredits(c.credits);
+    setEditUnlimited(c.isUnlimited);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCreateCitizenSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addName.trim() || !addContact.trim()) {
+      showNotification('कृपया सदस्य का नाम व मोबाइल/ईमेल दर्ज करें।');
+      return;
+    }
+    const created = adminCreateCitizen({
+      name: addName,
+      emailOrPhone: addContact,
+      role: addRole,
+      designation: addDesignation || 'Verified Official Member',
+      organization: addOrg,
+      isUnlimited: addUnlimited,
+      credits: addCredits,
+    });
+    setIsAddModalOpen(false);
+    setAddName('');
+    setAddContact('');
+    setAddDesignation('');
+    reloadData();
+    showNotification(`✅ सदस्य '${created.name}' (${created.uid}) को सफलतापूर्वक नियुक्त किया गया!`);
+  };
+
+  const handleAppointPostSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCitizenForEdit) return;
+    const res = adminAppointPost(selectedCitizenForEdit.uid, {
+      name: editName,
+      role: editRole,
+      designation: editDesignation,
+      organization: editOrg,
+      credits: editCredits,
+      isUnlimited: editUnlimited,
+    });
+    if (!res.success) {
+      showNotification(`⚠️ ${res.message}`);
+      return;
+    }
+    setIsEditModalOpen(false);
+    setSelectedCitizenForEdit(null);
+    reloadData();
+    showNotification(`✅ ${res.message}`);
+  };
+
+  const handleDeleteCitizen = (uid: string) => {
+    const res = adminDeleteCitizen(uid);
+    if (!res.success) {
+      showNotification(`⚠️ ${res.message}`);
+      setDeleteConfirmCitizen(null);
+      return;
+    }
+    setDeleteConfirmCitizen(null);
+    reloadData();
+    showNotification(`✅ ${res.message}`);
   };
 
   // Admin Actions on UTRs
@@ -567,8 +666,8 @@ export default function AdminPage() {
         {/* TAB 1: ALL REGISTERED CITIZENS DIRECTORY */}
         {activeTab === 'citizens' && (
           <div className="space-y-4 animate-in fade-in">
-            {/* Filter & Search Bar */}
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            {/* Filter, Search & Add Member Action Bar */}
+            <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
               <div className="relative flex-1 max-w-md">
                 <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -580,21 +679,33 @@ export default function AdminPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
-                <span className="text-[11px] text-slate-500 font-mono font-bold">Role:</span>
-                {(['all', 'investor', 'investigator', 'admin'] as const).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRoleFilter(r)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      roleFilter === r
-                        ? 'bg-[#004A87] text-white shadow-xs'
-                        : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-                    }`}
-                  >
-                    {r.toUpperCase()}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+                  <span className="text-[11px] text-slate-500 font-mono font-bold">Role:</span>
+                  {(['all', 'investor', 'investigator', 'admin'] as const).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRoleFilter(r)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        roleFilter === r
+                          ? 'bg-[#004A87] text-white shadow-xs'
+                          : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
+                      }`}
+                    >
+                      {r.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-[#002D54] to-[#004A87] hover:from-[#001D38] hover:to-[#003868] text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-[0.98] transition-all"
+                  title="नया सदस्य जोड़ें व पद नियुक्त करें"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-amber-300" />
+                  <span>+ नया सदस्य / पद नियुक्त करें</span>
+                </button>
               </div>
             </div>
 
@@ -609,7 +720,7 @@ export default function AdminPage() {
                       <th className="py-3 px-4">Designation & Role</th>
                       <th className="py-3 px-4">Balance / Scans</th>
                       <th className="py-3 px-4">Subscription Plan</th>
-                      <th className="py-3 px-4 text-right">Admin Actions</th>
+                      <th className="py-3 px-4 text-right min-w-[280px]">Admin Actions & Governance</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-sans">
@@ -698,13 +809,13 @@ export default function AdminPage() {
                           </span>
                         </td>
 
-                        {/* Quick Admin Actions */}
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        {/* Quick Admin Actions & Governance */}
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap min-w-[280px]">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               type="button"
                               onClick={() => handleAddCredits(c.uid, 15)}
-                              className="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold border border-slate-300 transition-colors cursor-pointer"
+                              className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold border border-slate-300 transition-colors cursor-pointer"
                               title="Add 15 Credits"
                             >
                               +15 Scans
@@ -714,14 +825,46 @@ export default function AdminPage() {
                               onClick={() =>
                                 handleSetPlan(c.uid, c.isUnlimited ? 'free' : 'pro')
                               }
-                              className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                                 c.isUnlimited
                                   ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
                                   : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
                               }`}
+                              title={c.isUnlimited ? 'Revoke Pro' : 'Grant Pro Pass'}
                             >
-                              {c.isUnlimited ? 'Revoke Pro' : '👑 Pro Pass'}
+                              {c.isUnlimited ? 'Revoke' : '👑 Pro'}
                             </button>
+
+                            {/* Appoint Post & Role Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(c)}
+                              className="px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 text-[#004A87] text-[10px] font-bold border border-blue-200 transition-colors cursor-pointer flex items-center gap-1"
+                              title="पद व रोल नियुक्त करें / Appoint Post"
+                            >
+                              <Award className="w-3 h-3 text-[#004A87]" />
+                              <span>पद बदलें</span>
+                            </button>
+
+                            {/* Delete Action or Immutable Immunity Badge for Chief Admin */}
+                            {c.uid === CHIEF_ADMIN_UID ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-mono font-black shadow-2xs select-none"
+                                title="मुख्य व्यवस्थापक (Chief Admin - Aryan Singh) का खाता पूर्णतः सुरक्षित है — इसे किसी के द्वारा भी हटाया या बदला नहीं जा सकता (Root Authority Immunity)"
+                              >
+                                <Lock className="w-3 h-3 text-amber-600 shrink-0" />
+                                <span>सुरक्षित रूट (Immune)</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteConfirmCitizen(c)}
+                                className="p-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 transition-colors cursor-pointer"
+                                title={`खाता हटाएं (${c.name})`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1105,6 +1248,331 @@ export default function AdminPage() {
                 <p>
                   - नागरिक जैसे ही PhonePe/GPay से स्कैन करेगा, पैसा सीधे इस बैंक खाते में जाएगा।
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* MODAL 1: ADD NEW MEMBER & APPOINT OFFICIAL POST         */}
+        {/* ======================================================== */}
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-7 space-y-5 relative max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 text-[#004A87] flex items-center justify-center font-bold">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
+                      नया सदस्य जोड़ें व पद नियुक्त करें
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-mono">
+                      Chief Admin Executive Appointment Console
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateCitizenSubmit} className="space-y-4 text-xs font-sans">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    पूरा नाम (Full Name) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    placeholder="उदा. डॉ. नीहा सेन या राहुल वर्मा"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      मोबाइल / ईमेल (Contact) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={addContact}
+                      onChange={(e) => setAddContact(e.target.value)}
+                      placeholder="उदा. 9876543210 या user@domain.com"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      रोल (Authority Role)
+                    </label>
+                    <select
+                      value={addRole}
+                      onChange={(e) => setAddRole(e.target.value as any)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-bold bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                    >
+                      <option value="admin">ADMIN (Executive Admin)</option>
+                      <option value="investigator">INVESTIGATOR (Cybercrime Wing)</option>
+                      <option value="investor">INVESTOR (Verified Citizen Member)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    आधिकारिक पद (Official Designation / Post) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={addDesignation}
+                    onChange={(e) => setAddDesignation(e.target.value)}
+                    placeholder="उदा. Vice President, Cyber Crime Inspector, Advisory Member"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    संस्थान / विभाग (Organization)
+                  </label>
+                  <input
+                    type="text"
+                    value={addOrg}
+                    onChange={(e) => setAddOrg(e.target.value)}
+                    placeholder="उदा. ScamShield Bharat (IIT BHU) या National Cyber Wing"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-slate-900 block">👑 अनलिमिटेड प्रो पास (Unlimited VIP Access)</span>
+                    <span className="text-[11px] text-slate-500">
+                      बिना किसी सीमा के आजीवन/वार्षिक सुरक्षा स्कैन्स की अनुमति दें
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={addUnlimited}
+                    onChange={(e) => setAddUnlimited(e.target.checked)}
+                    className="w-5 h-5 accent-[#004A87] rounded cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer"
+                  >
+                    रद्द करें
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#002D54] to-[#004A87] hover:from-[#001D38] hover:to-[#003868] text-white font-extrabold shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    ✅ सदस्य नियुक्त करें व खाता जोड़ें
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* MODAL 2: EDIT MEMBER / APPOINT POST                     */}
+        {/* ======================================================== */}
+        {isEditModalOpen && selectedCitizenForEdit && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-7 space-y-5 relative max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-800 flex items-center justify-center font-bold">
+                    <Award className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
+                      पद व अधिकार नियुक्त करें (Appoint Post &amp; Alter Role)
+                    </h3>
+                    <p className="text-[11px] text-[#004A87] font-mono font-bold">
+                      {selectedCitizenForEdit.name} • {selectedCitizenForEdit.uid}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleAppointPostSubmit} className="space-y-4 text-xs font-sans">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    सदस्य का नाम (Member Name)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      रोल (System Role)
+                    </label>
+                    <select
+                      value={editRole}
+                      disabled={selectedCitizenForEdit.uid === CHIEF_ADMIN_UID}
+                      onChange={(e) => setEditRole(e.target.value as any)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-bold bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#004A87] disabled:bg-slate-100 disabled:cursor-not-allowed"
+                    >
+                      <option value="admin">ADMIN (Executive Admin)</option>
+                      <option value="investigator">INVESTIGATOR (Cybercrime Wing)</option>
+                      <option value="investor">INVESTOR (Verified Citizen Member)</option>
+                    </select>
+                    {selectedCitizenForEdit.uid === CHIEF_ADMIN_UID && (
+                      <p className="text-[10px] text-amber-700 font-mono mt-1">
+                        🔒 मुख्य व्यवस्थापक पद को डिमोट नहीं किया जा सकता
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      क्रेडिट्स बैलेंस (Scans Left)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={editCredits}
+                      onChange={(e) => setEditCredits(parseInt(e.target.value, 10) || 0)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    आधिकारिक पद (Official Post / Designation)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editDesignation}
+                    onChange={(e) => setEditDesignation(e.target.value)}
+                    placeholder="उदा. President, Vice President, Chief Investigator"
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    संस्थान / विभाग (Organization)
+                  </label>
+                  <input
+                    type="text"
+                    value={editOrg}
+                    onChange={(e) => setEditOrg(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                  />
+                </div>
+
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-slate-900 block">👑 अनलिमिटेड प्रो पास (Unlimited Access)</span>
+                    <span className="text-[11px] text-slate-500">
+                      नागरिक को असीमित स्कैन्स व एफआईआर रिपोर्ट का अधिकार दें
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={editUnlimited}
+                    onChange={(e) => setEditUnlimited(e.target.checked)}
+                    className="w-5 h-5 accent-[#004A87] rounded cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer"
+                  >
+                    रद्द करें
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-[#004A87] hover:bg-[#003868] text-white font-extrabold shadow-sm cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    💾 पद व बदलाव सुरक्षित करें
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* MODAL 3: DELETE CONFIRMATION DIALOG                     */}
+        {/* ======================================================== */}
+        {deleteConfirmCitizen && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 space-y-4 relative">
+              <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-200">
+                <Trash2 className="w-6 h-6 stroke-[2.2]" />
+              </div>
+
+              <div className="text-center space-y-1.5">
+                <h3 className="font-extrabold text-base text-slate-900">
+                  खाता हटाने की पुष्टि (Confirm Deletion)
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  क्या आप वाकई <strong className="text-slate-900">{deleteConfirmCitizen.name}</strong> (UID: <span className="font-mono text-[#004A87] font-bold">{deleteConfirmCitizen.uid}</span>) का खाता हटाना चाहते हैं?
+                </p>
+                <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 text-left space-y-1">
+                  <p className="font-bold flex items-center gap-1 text-amber-800">
+                    <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                    <span>अपरिवर्तनीय क्रिया (Permanent Removal):</span>
+                  </p>
+                  <p className="text-slate-700">
+                    यह खाता केंद्रीय रजिस्ट्री से तुरंत हटा दिया जाएगा। (मुख्य व्यवस्थापक को कभी नहीं हटाया जा सकता)।
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirmCitizen(null)}
+                  className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                >
+                  रद्द करें (Cancel)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCitizen(deleteConfirmCitizen.uid)}
+                  className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs shadow-md transition-all cursor-pointer active:scale-[0.98]"
+                >
+                  हाँ, खाता हटाएं (Delete)
+                </button>
               </div>
             </div>
           </div>
