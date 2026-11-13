@@ -100,12 +100,8 @@ export default function PaymentCheckoutModal({
   const [selectedPlan, setSelectedPlan] = useState<PlanType>(initialPlan);
   const [activeTab, setActiveTab] = useState<'upi' | 'card' | 'netbanking'>('upi');
 
-  // Recipient UPI ID (default or configurable)
-  const [recipientUpi, setRecipientUpi] = useState<string>(
-    process.env.NEXT_PUBLIC_UPI_ID || 'scamshieldbharat@axisbank'
-  );
-  const [isEditingUpi, setIsEditingUpi] = useState(false);
-  const [customUpiInput, setCustomUpiInput] = useState('');
+  // Fixed Official Recipient UPI ID (Permanently Non-Editable)
+  const recipientUpi = 'scamshieldbharat@upi';
 
   // Scannable QR Code Data URL
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
@@ -138,16 +134,6 @@ export default function PaymentCheckoutModal({
       setSelectedPlan(initialPlan);
     }
   }, [initialPlan]);
-
-  // Load any previously saved admin UPI from localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('scamshield_merchant_upi');
-      if (saved && saved.includes('@')) {
-        setRecipientUpi(saved);
-      }
-    }
-  }, []);
 
   // Generate Real Scannable UPI QR Code (Keeping literal @ in pa= for NPCI UPI app compatibility)
   useEffect(() => {
@@ -259,18 +245,6 @@ export default function PaymentCheckoutModal({
     navigator.clipboard?.writeText(recipientUpi);
     setCopiedUpi(true);
     setTimeout(() => setCopiedUpi(false), 2000);
-  };
-
-  const handleSaveCustomUpi = () => {
-    const clean = customUpiInput.trim();
-    if (clean && clean.includes('@') && clean.length > 5) {
-      setRecipientUpi(clean);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('scamshield_merchant_upi', clean);
-      }
-      setIsEditingUpi(false);
-      setCustomUpiInput('');
-    }
   };
 
   // Execute payment upon UTR verification or Card/Netbanking submission
@@ -657,65 +631,33 @@ Thank you for securing yourself and your family with ScamShield Bharat!
                           : 'Open your UPI app on mobile, scan this QR code and complete payment.'}
                       </p>
 
-                      {/* Beneficiary UPI ID */}
+                      {/* Official Beneficiary UPI ID (Fixed & Non-Editable) */}
                       <div className="p-2.5 rounded-xl bg-white border border-slate-200 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] text-slate-400 font-mono block">
-                            {isHindi ? 'भुगतान UPI आईडी (Payee VPA):' : 'Beneficiary UPI ID:'}
+                        <span className="text-[10px] text-slate-500 font-mono font-bold block">
+                          {isHindi ? '🔒 आधिकारिक भुगतान UPI आईडी (Official Payee VPA):' : '🔒 Official Beneficiary UPI ID:'}
+                        </span>
+                        <div className="flex items-center justify-between gap-1 pt-0.5">
+                          <span className="text-xs font-black text-slate-900 font-mono tracking-wide truncate">
+                            {recipientUpi}
                           </span>
                           <button
                             type="button"
-                            onClick={() => {
-                              setIsEditingUpi(!isEditingUpi);
-                              if (!isEditingUpi) setCustomUpiInput(recipientUpi);
-                            }}
-                            className="text-[10px] font-bold text-[#004A87] hover:underline cursor-pointer"
+                            onClick={handleCopyUpi}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
                           >
-                            {isEditingUpi ? (isHindi ? 'रद्द करें' : 'Cancel') : (isHindi ? '✏️ बदलें' : '✏️ Set UPI')}
+                            {copiedUpi ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span className="text-emerald-700">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3 text-slate-500" />
+                                <span>Copy</span>
+                              </>
+                            )}
                           </button>
                         </div>
-
-                        {isEditingUpi ? (
-                          <div className="flex gap-1.5 pt-1">
-                            <input
-                              type="text"
-                              value={customUpiInput}
-                              onChange={(e) => setCustomUpiInput(e.target.value)}
-                              placeholder="e.g. yourname@okhdfcbank"
-                              className="flex-1 px-2 py-1 text-xs rounded-lg border border-slate-300 font-mono"
-                            />
-                            <button
-                              type="button"
-                              onClick={handleSaveCustomUpi}
-                              className="px-2.5 py-1 text-[11px] font-bold bg-[#004A87] text-white rounded-lg cursor-pointer"
-                            >
-                              Save
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="text-xs font-bold text-slate-800 font-mono truncate">
-                              {recipientUpi}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={handleCopyUpi}
-                              className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
-                            >
-                              {copiedUpi ? (
-                                <>
-                                  <Check className="w-3 h-3 text-emerald-600" />
-                                  <span className="text-emerald-700">Copied</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="w-3 h-3 text-slate-500" />
-                                  <span>Copy</span>
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>

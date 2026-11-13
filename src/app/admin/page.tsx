@@ -88,7 +88,7 @@ export default function AdminPage() {
   const [utrSearchQuery, setUtrSearchQuery] = useState('');
 
   // UPI Settings
-  const [merchantUpi, setMerchantUpi] = useState('scamshieldbharat@axisbank');
+  const [merchantUpi, setMerchantUpi] = useState('scamshieldbharat@upi');
   const [upiSavedNotice, setUpiSavedNotice] = useState(false);
 
   // Copy feedback
