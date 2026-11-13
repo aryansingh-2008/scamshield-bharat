@@ -31,6 +31,7 @@ interface HeaderProps {
   onOpenAbout?: () => void;
   onOpenSecurity?: () => void;
   onOpenTerms?: () => void;
+  onOpenProfile?: () => void;
   onNavigateHome: () => void;
   onNavigateSources?: () => void;
   onTriggerDemo?: () => void;
@@ -45,6 +46,7 @@ export default function Header({
   onOpenAbout,
   onOpenSecurity,
   onOpenTerms,
+  onOpenProfile,
   onNavigateHome,
   onNavigateSources,
   onTriggerDemo,
@@ -178,6 +180,18 @@ export default function Header({
               <span>{isHindi ? 'हमारे बारे में' : 'About'}</span>
             </button>
           )}
+
+          {/* Profile Navigation Button */}
+          {onOpenProfile && (
+            <button
+              onClick={onOpenProfile}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#004A87] bg-blue-50/80 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+              title={isHindi ? 'नागरिक सुरक्षा प्रोफ़ाइल' : 'Citizen Safety Profile'}
+            >
+              <User className="w-3.5 h-3.5 text-[#004A87]" />
+              <span>{isHindi ? 'प्रोफ़ाइल' : 'Profile'}</span>
+            </button>
+          )}
         </nav>
 
         {/* Action Controls & Navigation */}
@@ -224,18 +238,24 @@ export default function Header({
           {/* Authentication Badge / Login Button */}
           {user ? (
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs rounded-lg bg-blue-50 border border-blue-200 text-[#004A87] shadow-2xs">
-                <div className="w-5 h-5 rounded-full bg-[#004A87] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+              <button
+                onClick={onOpenProfile}
+                className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs rounded-lg bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-[#004A87] shadow-2xs transition-colors cursor-pointer group"
+                title={isHindi ? 'मेरी प्रोफ़ाइल देखें' : 'View My Profile'}
+              >
+                <div className="w-5 h-5 rounded-full bg-[#004A87] text-white flex items-center justify-center text-[10px] font-bold shrink-0 group-hover:scale-105 transition-transform">
                   {user.name.charAt(0).toUpperCase()}
                 </div>
                 <span className="font-bold hidden md:inline truncate max-w-[110px]">
                   {user.name}
                 </span>
-
-              </div>
+                <span className="text-[10px] px-1 py-0.2 bg-emerald-100 text-emerald-800 rounded font-semibold hidden lg:inline">
+                  ✓
+                </span>
+              </button>
               <button
                 onClick={logout}
-                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                 title={isHindi ? 'लॉगआउट करें' : 'Sign Out'}
                 aria-label="Sign Out"
               >
@@ -269,23 +289,34 @@ export default function Header({
           {/* Mobile User Profile Section */}
           {user ? (
             <div className="p-3 mb-2 rounded-xl bg-blue-50/80 border border-blue-200 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-[#004A87] text-white flex items-center justify-center font-bold text-xs">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onOpenProfile?.();
+                }}
+                className="flex items-center gap-2.5 text-left flex-1 min-w-0 cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-full bg-[#004A87] text-white flex items-center justify-center font-bold text-xs shrink-0">
                   {user.name.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <p className="font-bold text-xs text-slate-900">{user.name}</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-xs text-slate-900 truncate">{user.name}</p>
+                    <span className="text-[9px] px-1 bg-emerald-100 text-emerald-800 rounded font-bold">
+                      VERIFIED
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-500 truncate">
                     {user.emailOrPhone || 'Verified Account'}
                   </p>
                 </div>
-              </div>
+              </button>
               <button
                 onClick={() => {
                   logout();
                   setIsMobileMenuOpen(false);
                 }}
-                className="px-2.5 py-1 text-xs font-bold text-red-600 bg-white hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold text-red-600 bg-white hover:bg-red-50 rounded-lg border border-red-200 transition-colors shrink-0 ml-2 cursor-pointer"
               >
                 {isHindi ? 'लॉगआउट' : 'Sign Out'}
               </button>
@@ -363,6 +394,19 @@ export default function Header({
             >
               <Building2 className="w-4 h-4 text-[#004A87]" />
               <span>{isHindi ? 'आधिकारिक स्रोत (SEBI, RBI, 1930)' : 'Official Sources (SEBI, RBI, 1930)'}</span>
+            </button>
+          )}
+
+          {onOpenProfile && (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenProfile();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#004A87] bg-blue-50/80 hover:bg-blue-100 rounded-lg text-left transition-colors"
+            >
+              <User className="w-4 h-4 text-[#004A87]" />
+              <span>{isHindi ? 'नागरिक सुरक्षा प्रोफ़ाइल' : 'Citizen Safety Profile'}</span>
             </button>
           )}
 

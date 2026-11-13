@@ -22,6 +22,7 @@ import SecurityModal from '@/components/SecurityModal';
 import SafetyTipsModal from '@/components/SafetyTipsModal';
 import AboutModal from '@/components/AboutModal';
 import TermsModal from '@/components/TermsModal';
+import UserProfileModal from '@/components/UserProfileModal';
 import SmartRiskWarningModal from '@/components/SmartRiskWarningModal';
 import OfficialSourcesPage from '@/components/OfficialSourcesPage';
 import Footer from '@/components/Footer';
@@ -69,6 +70,7 @@ export default function HomePage() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
 
   const inputSectionRef = useRef<HTMLDivElement>(null);
@@ -258,6 +260,7 @@ export default function HomePage() {
         onOpenAbout={() => setIsAboutOpen(true)}
         onOpenSecurity={() => setIsSecurityOpen(true)}
         onOpenTerms={() => setIsTermsOpen(true)}
+        onOpenProfile={() => setIsProfileOpen(true)}
         onNavigateHome={handleResetCheck}
         onNavigateSources={() => setCurrentView('sources')}
         onTriggerDemo={() => scrollToInput('demo')}
@@ -794,6 +797,12 @@ export default function HomePage() {
       <TermsModal
         isOpen={isTermsOpen}
         onClose={() => setIsTermsOpen(false)}
+        lang={lang}
+      />
+
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
         lang={lang}
       />
 

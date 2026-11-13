@@ -29,6 +29,7 @@ function LoginContent() {
 
   // Sign In State
   const [identifier, setIdentifier] = useState('');
+  const [signinName, setSigninName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [captchaAnswer, setCaptchaAnswer] = useState({ n1: 7, n2: 5 });
@@ -140,9 +141,9 @@ function LoginContent() {
     setIsSubmitting(true);
     setTimeout(() => {
       login({
-        name: identifier.includes('@')
+        name: signinName.trim() || (identifier.includes('@')
           ? identifier.split('@')[0]
-          : `Citizen +91 ***${identifier.replace(/\D/g, '').slice(-4)}`,
+          : `Citizen +91 ***${identifier.replace(/\D/g, '').slice(-4)}`),
         emailOrPhone: identifier,
         role: 'investor',
         designation: 'Verified Account Holder',
@@ -382,6 +383,25 @@ function LoginContent() {
                       ? 'अपना पंजीकृत 10 अंकों का मोबाइल नंबर या ईमेल दर्ज करें।'
                       : 'Enter your registered 10-digit mobile number or email.'}
                   </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span>{isHindi ? 'आपका नाम (वैकल्पिक)' : 'Your Name (Optional)'}</span>
+                    <span className="text-[10px] text-slate-400 font-normal">{isHindi ? 'प्रोफ़ाइल हेतु' : 'For profile'}</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <User className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={signinName}
+                      onChange={(e) => setSigninName(e.target.value)}
+                      placeholder={isHindi ? 'अपना नाम दर्ज करें (उदा. आर्यन सिंह)' : 'Enter your name (e.g. Aryan Singh)'}
+                      className="w-full pl-9 pr-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#004A87]"
+                    />
+                  </div>
                 </div>
 
                 <div>

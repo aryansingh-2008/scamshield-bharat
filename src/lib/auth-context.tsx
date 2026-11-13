@@ -9,12 +9,15 @@ export interface UserProfile {
   designation?: string;
   organization?: string;
   verified?: boolean;
+  autoRedactPii?: boolean;
+  highSensitivity?: boolean;
 }
 
 interface AuthContextType {
   user: UserProfile | null;
   isSkipped: boolean;
   login: (profile: UserProfile) => void;
+  updateUser: (updated: Partial<UserProfile>) => void;
   loginAsDemo: (type: 'investor' | 'investigator') => void;
   skipLogin: () => void;
   logout: () => void;
@@ -77,6 +80,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateUser = (updated: Partial<UserProfile>) => {
+    if (!user) return;
+    const newProfile = { ...user, ...updated };
+    setUser(newProfile);
+    try {
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(newProfile));
+    } catch (e) {
+      console.warn('Failed to update user in localStorage', e);
+    }
+  };
+
   const loginAsDemo = (type: 'investor' | 'investigator') => {
     const demoProfile = DEMO_USERS[type];
     login(demoProfile);
@@ -113,6 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         isSkipped,
         login,
+        updateUser,
         loginAsDemo,
         skipLogin,
         logout,
