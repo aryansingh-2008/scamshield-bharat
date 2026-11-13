@@ -9,26 +9,25 @@ export const metadata: Metadata = {
     template: '%s | ScamShield Bharat',
   },
   description:
-    'ScamShield Bharat (scamshieldbharat.live) is India’s evidence-first financial cyber safety assistant developed at IIT BHU. Verify suspicious stock tips, Telegram channels, fake IPOs, and fraudulent payment APKs against official SEBI and RBI registries.',
+    'ScamShield Bharat (scamshieldbharat.live) is India’s evidence-first financial cyber safety assistant. Safely verify suspicious stock recommendations, Telegram investment channels, fake IPOs, and fraudulent payment APKs against official regulatory records.',
   keywords: [
     'ScamShield Bharat',
     'scam shield bharat',
     'scamshield bharat',
     'scam shield bharat live',
     'scamshieldbharat.live',
-    'scam shield bharat iit bhu',
     'Scam Shield India',
     'Financial Scam Detection',
     'SEBI Verification',
     'RBI Sachet',
     'Investor Protection India',
-    'Phishing Detector',
+    'Phishing Detector India',
     'Fraud Prevention India',
-    'Cyber Crime 1930',
+    'Cyber Crime Prevention 1930',
     'Telegram Scam Detector',
     'Fake Stock Advisory Detection',
   ],
-  authors: [{ name: 'Aryan Singh & ScamShield Bharat Team (IIT BHU)' }],
+  authors: [{ name: 'ScamShield Bharat Security Team' }],
   creator: 'ScamShield Bharat Initiative',
   publisher: 'ScamShield Bharat',
   alternates: {
@@ -37,7 +36,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'ScamShield Bharat | Evidence-First Financial Cyber Safety',
     description:
-      'Verify suspicious financial messages, fraudulent stock recommendations, and fake investment apps against official SEBI and RBI databases.',
+      'Verify suspicious financial messages, fraudulent stock recommendations, and fake investment apps against official SEBI and RBI records.',
     url: 'https://scamshieldbharat.live',
     siteName: 'ScamShield Bharat',
     locale: 'en_IN',
@@ -47,7 +46,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'ScamShield Bharat | Cyber Fraud Detection Assistant',
     description:
-      'Evidence-first financial cyber safety assistant for Indian retail investors developed at IIT BHU.',
+      'Evidence-first financial cyber safety assistant for Indian retail investors and citizens.',
   },
   robots: {
     index: true,
@@ -60,9 +59,9 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || '',
-  },
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+    ? { verification: { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION } }
+    : {}),
 };
 
 export const viewport: Viewport = {
@@ -80,9 +79,9 @@ const jsonLd = {
       '@id': 'https://scamshieldbharat.live/#website',
       url: 'https://scamshieldbharat.live',
       name: 'ScamShield Bharat',
-      alternateName: ['scam shield bharat', 'ScamShield Bharat Live', 'Scam Shield IIT BHU'],
+      alternateName: ['scam shield bharat', 'ScamShield Bharat Live'],
       description:
-        'India’s Evidence-First Financial Cyber Safety Assistant developed at IIT BHU.',
+        'India’s Evidence-First Financial Cyber Safety Assistant for Citizens and Retail Investors.',
       inLanguage: ['en-IN', 'hi-IN'],
     },
     {
@@ -90,16 +89,16 @@ const jsonLd = {
       '@id': 'https://scamshieldbharat.live/#organization',
       name: 'ScamShield Bharat',
       url: 'https://scamshieldbharat.live',
-      foundingLocation: 'IIT BHU, Varanasi, India',
-      founder: {
-        '@type': 'Person',
-        name: 'Aryan Singh',
+      description: 'Independent Civic Cybersecurity & Fraud Prevention Initiative',
+      areaServed: {
+        '@type': 'Country',
+        name: 'India',
       },
       knowsAbout: [
         'Cyber Crime Detection',
         'Financial Fraud Prevention',
-        'SEBI Regulations',
-        'RBI Guidelines',
+        'SEBI Advisory Verification',
+        'RBI Sachet Verification',
         'Phishing Detection',
       ],
     },
