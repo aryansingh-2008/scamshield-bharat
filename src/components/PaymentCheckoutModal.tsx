@@ -87,6 +87,18 @@ const PLANS: Record<PlanType, PlanDetails> = {
   },
 };
 
+export const DEFAULT_OFFICIAL_UPI = 'scamshieldbharat@upi';
+
+export function getOfficialUpi(): string {
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('scamshield_merchant_upi');
+      if (saved && saved.includes('@') && saved.length > 5) return saved.trim();
+    } catch {}
+  }
+  return DEFAULT_OFFICIAL_UPI;
+}
+
 export default function PaymentCheckoutModal({
   isOpen,
   onClose,
@@ -100,8 +112,29 @@ export default function PaymentCheckoutModal({
   const [selectedPlan, setSelectedPlan] = useState<PlanType>(initialPlan);
   const [activeTab, setActiveTab] = useState<'upi' | 'card' | 'netbanking'>('upi');
 
-  // Fixed Official Recipient UPI ID (Permanently Non-Editable)
-  const recipientUpi = 'scamshieldbharat@upi';
+  // Official Recipient UPI ID - Centrally Controlled by Main Admin (Non-editable for citizens)
+  const [recipientUpi, setRecipientUpi] = useState<string>(getOfficialUpi);
+
+  // Sync UPI in real time when Main Admin updates it in /admin
+  useEffect(() => {
+    const handleUpiSync = () => {
+      setRecipientUpi(getOfficialUpi());
+    };
+
+    if (isOpen) {
+      handleUpiSync();
+    }
+
+    window.addEventListener('scamshield_merchant_upi_updated', handleUpiSync);
+    window.addEventListener('storage', handleUpiSync);
+    window.addEventListener('focus', handleUpiSync);
+
+    return () => {
+      window.removeEventListener('scamshield_merchant_upi_updated', handleUpiSync);
+      window.removeEventListener('storage', handleUpiSync);
+      window.removeEventListener('focus', handleUpiSync);
+    };
+  }, [isOpen]);
 
   // Scannable QR Code Data URL
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');

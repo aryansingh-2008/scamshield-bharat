@@ -292,14 +292,23 @@ export default function AdminPage() {
   };
 
   const handleSaveUpi = () => {
+    // Security Gate: Only Chief Admin / Authenticated Admin can change the beneficiary UPI
+    if (user?.role !== 'admin') {
+      showNotification('सुरक्षा नियम: केवल अधिकृत मुख्य व्यवस्थापक (Chief Admin) ही UPI VPA बदल सकते हैं।');
+      return;
+    }
+
     const clean = merchantUpi.trim();
-    if (clean && clean.includes('@')) {
+    if (clean && clean.includes('@') && clean.length > 5) {
       if (typeof window !== 'undefined') {
         localStorage.setItem('scamshield_merchant_upi', clean);
+        window.dispatchEvent(new CustomEvent('scamshield_merchant_upi_updated', { detail: clean }));
       }
       setUpiSavedNotice(true);
       setTimeout(() => setUpiSavedNotice(false), 2500);
-      showNotification(`Beneficiary UPI updated to ${clean}`);
+      showNotification(`✅ Official Beneficiary UPI updated to '${clean}'! Live QR codes and payments are now routing to this account.`);
+    } else {
+      showNotification('⚠️ कृपया वैध UPI VPA (उदा. scamshieldbharat@upi) दर्ज करें।');
     }
   };
 
@@ -1207,11 +1216,16 @@ export default function AdminPage() {
                   <QrCode className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">
-                    Master Beneficiary UPI Settings
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    वेबसाइट के QR कोड पर कौन सी UPI ID में पैसे रिसीव होंगे, यहाँ से सेट करें।
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-sm text-slate-900">
+                      Master Beneficiary UPI Settings
+                    </h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                      👑 Chief Admin Exclusive
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    वेबसाइट के QR कोड पर कौन सी UPI ID में पैसे रिसीव होंगे, केवल मुख्य व्यवस्थापक यहाँ से सेट कर सकते हैं।
                   </p>
                 </div>
               </div>
@@ -1220,25 +1234,42 @@ export default function AdminPage() {
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 font-mono">
                   Official Recipient UPI ID (VPA):
                 </label>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
                     value={merchantUpi}
                     onChange={(e) => setMerchantUpi(e.target.value)}
-                    placeholder="e.g. yourname@okhdfcbank or 9876543210@paytm"
+                    placeholder="e.g. scamshieldbharat@upi or yourname@okhdfcbank"
                     className="flex-1 px-3 py-2.5 text-xs rounded-xl bg-slate-50 border border-slate-300 text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#004A87]/20 focus:border-[#004A87]"
                   />
-                  <button
-                    type="button"
-                    onClick={handleSaveUpi}
-                    className="px-5 py-2.5 rounded-xl bg-[#004A87] hover:bg-[#003868] text-white font-extrabold text-xs transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span>Save UPI</span>
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveUpi}
+                      className="px-5 py-2.5 rounded-xl bg-[#004A87] hover:bg-[#003868] text-white font-extrabold text-xs transition-colors shadow-sm flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save UPI</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMerchantUpi('scamshieldbharat@upi');
+                        if (typeof window !== 'undefined') {
+                          localStorage.setItem('scamshield_merchant_upi', 'scamshieldbharat@upi');
+                          window.dispatchEvent(new CustomEvent('scamshield_merchant_upi_updated', { detail: 'scamshieldbharat@upi' }));
+                        }
+                        showNotification('✅ UPI ID को आधिकारिक डिफ़ॉल्ट (scamshieldbharat@upi) पर रीसेट कर दिया गया!');
+                      }}
+                      className="px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+                      title="Reset to official default"
+                    >
+                      <span>डिफ़ॉल्ट रीसेट</span>
+                    </button>
+                  </div>
                 </div>
                 {upiSavedNotice && (
-                  <p className="text-xs text-emerald-700 font-bold mt-1.5 flex items-center gap-1">
+                  <p className="text-xs text-emerald-700 font-bold mt-1.5 flex items-center gap-1 animate-in fade-in">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>UPI ID सफलतापूर्वक अपडेट हो गई! अब लाइव QR कोड इसी पते पर खुलेगा।</span>
                   </p>
@@ -1246,12 +1277,12 @@ export default function AdminPage() {
               </div>
 
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1 font-mono text-slate-600">
-                <span className="font-bold text-slate-900 block">💡 Admin Guidance:</span>
+                <span className="font-bold text-slate-900 block">💡 मुख्य व्यवस्थापक सुरक्षा नियम:</span>
                 <p>
-                  - यहाँ डाली गई UPI ID पूरी साइट पर डायनामिक QR कोड में इस्तेमाल होती है।
+                  - नागरिक चेकआउट स्क्रीन पर UPI आईडी हमेशा <strong>नॉन-एडिटेबल (Non-Editable)</strong> रहती है।
                 </p>
                 <p>
-                  - नागरिक जैसे ही PhonePe/GPay से स्कैन करेगा, पैसा सीधे इस बैंक खाते में जाएगा।
+                  - केवल यहाँ चीफ एडमिन द्वारा सेट की गई UPI ID ही पूरे प्लेटफ़ॉर्म पर डायनामिक QR कोड और बैंक लेजर में रूट होगी।
                 </p>
               </div>
             </div>
