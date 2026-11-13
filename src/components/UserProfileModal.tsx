@@ -66,6 +66,18 @@ export default function UserProfileModal({ isOpen, onClose, lang }: UserProfileM
 
   // System-decided designation (User CANNOT self-assign or manipulate this)
   const getSystemDesignation = () => {
+    if (user?.role === 'admin') {
+      return (
+        user.designation ||
+        (user.uid === 'SSB-PRESIDENT-0001'
+          ? isHindi
+            ? 'प्रेसिडेंट व कार्यकारी निदेशक (Executive President)'
+            : 'President & Executive Director'
+          : isHindi
+          ? 'मुख्य प्रशासक (Chief Administrator)'
+          : 'Chief Cyber Safety Officer')
+      );
+    }
     if (user?.role === 'investor') {
       return isHindi ? 'सत्यापित खुदरा निवेशक (Retail Investor)' : 'Verified Retail Investor';
     }

@@ -49,6 +49,22 @@ export function generateCitizenId(): string {
 // Initial pre-seeded citizen accounts
 const INITIAL_CITIZENS: RegisteredCitizen[] = [
   {
+    uid: 'SSB-PRESIDENT-0001',
+    name: 'Arti (President)',
+    emailOrPhone: 'president@scamshieldbharat.live',
+    role: 'admin',
+    designation: 'President & Executive Director',
+    organization: 'ScamShield Bharat (IIT BHU Civic Initiative)',
+    credits: 9999,
+    isUnlimited: true,
+    unlimitedExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+    planType: 'annual',
+    registeredAt: '2026-11-01T09:00:00.000Z',
+    lastActiveAt: new Date().toISOString(),
+    totalScans: 280,
+    isVerified: true,
+  },
+  {
     uid: 'SSB-ADMIN-0001',
     name: 'Aryan Singh (Chief Admin)',
     emailOrPhone: 'admin@scamshieldbharat.live',
@@ -193,7 +209,20 @@ export function getAllCitizens(): RegisteredCitizen[] {
       return INITIAL_CITIZENS;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : INITIAL_CITIZENS;
+    if (!Array.isArray(parsed)) return INITIAL_CITIZENS;
+
+    // Ensure executive leadership accounts (President & Chief Admin) always exist in registry
+    let modified = false;
+    for (const exec of INITIAL_CITIZENS) {
+      if (!parsed.some((c: RegisteredCitizen) => c.uid === exec.uid)) {
+        parsed.unshift(exec);
+        modified = true;
+      }
+    }
+    if (modified) {
+      localStorage.setItem(STORAGE_KEY_CITIZENS, JSON.stringify(parsed));
+    }
+    return parsed;
   } catch (e) {
     console.warn('Failed to load citizens registry', e);
     return INITIAL_CITIZENS;
@@ -331,7 +360,7 @@ export function recordNewUtrSubmission(params: {
 }
 
 // Admin approves a UTR: Updates status and automatically credits the user
-export function adminApproveUtr(utr: string, adminNotes?: string): boolean {
+export function adminApproveUtr(utr: string, adminNotes?: string, reviewerName?: string): boolean {
   const txns = getAllUtrTransactions();
   const txn = txns.find((t) => t.utr === utr);
   if (!txn) return false;
@@ -339,7 +368,7 @@ export function adminApproveUtr(utr: string, adminNotes?: string): boolean {
   txn.status = 'VERIFIED';
   txn.adminNotes = adminNotes || 'Approved by Master Admin';
   txn.reviewedAt = new Date().toISOString();
-  txn.reviewedBy = 'Aryan Singh (Chief Admin)';
+  txn.reviewedBy = reviewerName || 'Authorized Admin';
   saveUtrTransactions(txns);
 
   // Auto-credit the citizen account in registry

@@ -45,9 +45,21 @@ const DEFAULT_INITIAL_CREDITS = 5;
 export const MASTER_ADMIN_PASSKEY = 'ScamShield@2026';
 export const MASTER_ADMIN_PIN = '789012';
 
-export const verifyAdminPasskey = (input: string): boolean => {
-  const clean = input.trim();
-  return clean === MASTER_ADMIN_PASSKEY || clean === MASTER_ADMIN_PIN;
+// President Confidential Passkey & PIN (Arti - Site President)
+export const PRESIDENT_PASSKEY = 'Arti@President2026';
+export const PRESIDENT_PIN = '654321';
+
+// Designated Site President Account
+export const PRESIDENT_USER: UserProfile = {
+  uid: 'SSB-PRESIDENT-0001',
+  name: 'Arti (President)',
+  emailOrPhone: 'president@scamshieldbharat.live',
+  role: 'admin',
+  designation: 'President & Executive Director',
+  organization: 'ScamShield Bharat (IIT BHU Civic Initiative)',
+  verified: true,
+  autoRedactPii: false,
+  highSensitivity: true,
 };
 
 // Designated Master Admin Account
@@ -61,6 +73,24 @@ export const MASTER_ADMIN_USER: UserProfile = {
   verified: true,
   autoRedactPii: false,
   highSensitivity: true,
+};
+
+export const verifyAdminPasskey = (input: string): boolean => {
+  const clean = input.trim();
+  return (
+    clean === MASTER_ADMIN_PASSKEY ||
+    clean === MASTER_ADMIN_PIN ||
+    clean === PRESIDENT_PASSKEY ||
+    clean === PRESIDENT_PIN
+  );
+};
+
+export const getAdminUserForPasskey = (input: string): UserProfile => {
+  const clean = input.trim();
+  if (clean === PRESIDENT_PASSKEY || clean === PRESIDENT_PIN) {
+    return PRESIDENT_USER;
+  }
+  return MASTER_ADMIN_USER;
 };
 
 export const DEMO_USERS = {
@@ -217,10 +247,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (passkey !== undefined && !verifyAdminPasskey(passkey)) {
       return false;
     }
+    const adminUser = passkey ? getAdminUserForPasskey(passkey) : MASTER_ADMIN_USER;
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('scamshield_admin_authenticated', 'true');
     }
-    login(MASTER_ADMIN_USER);
+    login(adminUser);
     return true;
   };
 
