@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   X,
   Coins,
@@ -17,6 +18,7 @@ import {
   Check,
   CreditCard,
   Smartphone,
+  LogIn,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import PaymentCheckoutModal, { PlanType } from './PaymentCheckoutModal';
@@ -32,7 +34,7 @@ export default function CreditRechargeModal({
   onClose,
   lang,
 }: CreditRechargeModalProps) {
-  const { credits, isUnlimited } = useAuth();
+  const { user, credits, isUnlimited } = useAuth();
   const isHindi = lang === 'hi';
 
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('pro');
@@ -50,6 +52,49 @@ export default function CreditRechargeModal({
   }, [isOpen, onClose, isCheckoutOpen]);
 
   if (!isOpen) return null;
+
+  // STRICT RULE: Payment & Recharge options are ONLY accessible to logged-in users!
+  if (!user) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in"
+      >
+        <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 space-y-5 shadow-2xl text-center">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
+            <Lock className="w-7 h-7 stroke-[2.2]" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-slate-900">
+              {isHindi ? 'रीचार्ज हेतु लॉगिन आवश्यक है' : 'Sign In Required to Recharge'}
+            </h3>
+            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+              {isHindi
+                ? 'सुरक्षा नियमों के अनुसार, प्रो पास व क्रेडिट रीचार्ज केवल रजिस्टर्ड नागरिक खातों से ही किया जा सकता है। कृपया पहले लॉगिन करें।'
+                : 'According to safety rules, Pro passes and credit recharges are linked to registered citizen accounts. Please sign in to proceed.'}
+            </p>
+          </div>
+          <div className="flex gap-2.5">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              {isHindi ? 'रद्द करें' : 'Cancel'}
+            </button>
+            <Link
+              href="/login"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl bg-[#004A87] hover:bg-[#003866] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-colors cursor-pointer"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>{isHindi ? 'लॉगिन करें' : 'Sign In'}</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Seamless Transition: When checkout is active, render ONLY the Payment Window (No double-modal stacking)
   if (isCheckoutOpen) {

@@ -262,8 +262,8 @@ export default function Header({
             </span>
           </button>
 
-          {/* Credit Quota & Recharge Button */}
-          {onOpenRecharge && (
+          {/* Credit Quota & Recharge Control (Recharge is strictly visible only to logged-in citizens) */}
+          {user && onOpenRecharge ? (
             <button
               onClick={onOpenRecharge}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-2xs ${
@@ -285,6 +285,16 @@ export default function Header({
                 {isHindi ? 'रीचार्ज (₹9)' : 'Top-up'}
               </span>
             </button>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg border bg-slate-50 border-slate-200 text-slate-700 shadow-2xs"
+              title={isHindi ? 'मुफ्त ट्रायल स्कैन (अधिकतम 5 प्रति डिवाइस/आईपी)' : 'Free Trial Scans (5 Max per device/IP)'}
+            >
+              <span className="text-xs">🪙</span>
+              <span>
+                {credits} {isHindi ? 'मुफ्त स्कैन' : 'Free Scans'}
+              </span>
+            </div>
           )}
 
           {/* Authentication Badge / Login Button */}
@@ -398,8 +408,8 @@ export default function Header({
             </div>
           )}
 
-          {/* Mobile Credit Recharge Banner */}
-          {onOpenRecharge && (
+          {/* Mobile Credit Recharge Banner (Only for logged-in citizens) */}
+          {user && onOpenRecharge ? (
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);
@@ -419,6 +429,16 @@ export default function Header({
                 {isHindi ? 'रीचार्ज (₹9)' : 'Top-up (₹9)'}
               </span>
             </button>
+          ) : (
+            <div className="w-full flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold">
+              <div className="flex items-center gap-2">
+                <span>🪙</span>
+                <span>
+                  {credits} {isHindi ? 'मुफ्त ट्रायल स्कैन शेष' : 'Free Trial Scans Left'}
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono">5 MAX / IP</span>
+            </div>
           )}
 
           <button

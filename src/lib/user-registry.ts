@@ -360,8 +360,8 @@ export function recordNewUtrSubmission(params: {
     amount: params.amount,
     timestamp: new Date().toISOString(),
     beneficiaryUpi: params.beneficiaryUpi,
-    status: 'VERIFIED', // Real-time verified by default, queueable in Admin
-    adminNotes: 'Instant payment verification completed via NPCI switch',
+    status: 'PENDING', // STRICTLY PENDING: Must be verified by Admin against Bank SMS / UTR ledger
+    adminNotes: 'Awaiting Bank SMS / Admin UTR verification',
   };
 
   txns.unshift(newTxn);
@@ -399,6 +399,26 @@ export function adminApproveUtr(utr: string, adminNotes?: string, reviewerName?:
     }
     citizen.lastActiveAt = new Date().toISOString();
     saveCitizens(citizens);
+
+    // Sync active session if citizen is open in current browser
+    if (typeof window !== 'undefined') {
+      try {
+        const rawUser = localStorage.getItem('scamshield_user_session');
+        if (rawUser) {
+          const activeUser = JSON.parse(rawUser);
+          if (activeUser.uid === citizen.uid || activeUser.emailOrPhone === citizen.emailOrPhone) {
+            if (citizen.isUnlimited) {
+              localStorage.setItem(
+                'scamshield_unlimited_expiry',
+                (citizen.unlimitedExpiresAt || (Date.now() + 30 * 86400000)).toString()
+              );
+            }
+            localStorage.setItem('scamshield_user_credits', citizen.credits.toString());
+            window.dispatchEvent(new Event('scamshield_subscription_updated'));
+          }
+        }
+      } catch {}
+    }
   }
 
   return true;

@@ -3,7 +3,7 @@ import { AnalyzeRequestSchema } from '@/lib/schema';
 import { analyzeFinancialContent } from '@/lib/ai-analyzer';
 import { validateImageUpload } from '@/lib/file-security';
 import { validateAndParseUrl } from '@/lib/url-security';
-import { checkRateLimit } from '@/lib/rate-limiter';
+import { checkRateLimit, checkIpFreeQuota, recordIpFreeScan } from '@/lib/rate-limiter';
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,6 +27,25 @@ export async function POST(req: NextRequest) {
           },
         }
       );
+    }
+
+    // 2. Strict IP-Based Free Quota Enforcement (Max 5 scans per network IP for unverified sessions)
+    const userUidHeader = req.headers.get('x-user-uid') || '';
+    const isVerifiedUser = userUidHeader && userUidHeader !== 'guest' && userUidHeader.startsWith('SSB-');
+
+    if (!isVerifiedUser) {
+      const ipQuota = checkIpFreeQuota(clientIp);
+      if (!ipQuota.allowed) {
+        return NextResponse.json(
+          {
+            error: 'Free trial limit (5 scans) exhausted for this IP/network. Please sign in to verify your account or top up credits.',
+            errorHi: 'इस IP नेटवर्क के लिए 5 मुफ्त सुरक्षा जांच समाप्त हो चुकी हैं। आगे जांच जारी रखने के लिए कृपया लॉगिन करें।',
+            requiresAuth: true,
+          },
+          { status: 402 }
+        );
+      }
+      recordIpFreeScan(clientIp);
     }
 
     const contentType = req.headers.get('content-type') || '';

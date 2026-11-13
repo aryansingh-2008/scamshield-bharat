@@ -24,6 +24,9 @@ import {
   Sparkles,
   HelpCircle,
   Hash,
+  Clock,
+  ShieldAlert,
+  LogIn,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { recordNewUtrSubmission } from '@/lib/user-registry';
@@ -120,8 +123,8 @@ export default function PaymentCheckoutModal({
   const [cardError, setCardError] = useState<string | null>(null);
   const [selectedBank, setSelectedBank] = useState('sbi');
 
-  // Processing & Success states
-  const [paymentStep, setPaymentStep] = useState<'select' | 'processing' | 'success'>('select');
+  // Processing, Pending & Success states
+  const [paymentStep, setPaymentStep] = useState<'select' | 'processing' | 'pending' | 'success'>('select');
   const [processingStatus, setProcessingStatus] = useState('');
   const [txnId, setTxnId] = useState('');
   const [utrNumber, setUtrNumber] = useState('');
@@ -207,6 +210,47 @@ export default function PaymentCheckoutModal({
 
   if (!isOpen) return null;
 
+  if (!user) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in"
+      >
+        <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 space-y-5 shadow-2xl text-center">
+          <div className="w-14 h-14 mx-auto rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center">
+            <Lock className="w-7 h-7 stroke-[2.2]" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-slate-900">
+              {isHindi ? 'रीचार्ज हेतु लॉगिन आवश्यक है' : 'Sign In Required to Recharge'}
+            </h3>
+            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+              {isHindi
+                ? 'सुरक्षा नियमों के अनुसार, सुरक्षा क्रेडिट रीचार्ज व प्रो पास केवल रजिस्टर्ड नागरिक खातों को ही जारी किए जाते हैं। कृपया पहले लॉगिन करें।'
+                : 'Security Rule: Safety credits and Pro passes can only be linked to registered citizen accounts. Please sign in to continue.'}
+            </p>
+          </div>
+          <div className="flex gap-2.5">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors"
+            >
+              {isHindi ? 'रद्द करें' : 'Cancel'}
+            </button>
+            <a
+              href="/login"
+              className="flex-1 py-2.5 rounded-xl bg-[#004A87] hover:bg-[#003866] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-colors"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>{isHindi ? 'लॉगिन करें' : 'Sign In'}</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const currentPlan = PLANS[selectedPlan];
   const cleanUpi = recipientUpi.trim();
   const upiIntentUri = `upi://pay?pa=${cleanUpi}&pn=${encodeURIComponent('ScamShield Bharat')}&am=${currentPlan.price}&cu=INR&tn=${encodeURIComponent(`ScamShield ${currentPlan.nameEn}`)}`;
@@ -234,8 +278,8 @@ export default function PaymentCheckoutModal({
     setPaymentStep('processing');
     setProcessingStatus(
       isHindi
-        ? `12-अंकों का UTR (${utrValue}) बैंक स्विच से सत्यापित हो रहा है...`
-        : `Validating 12-digit UTR (${utrValue}) with NPCI banking switch...`
+        ? `12-अंकों का UTR (${utrValue}) बैंकिंग गेटवे में दर्ज हो रहा है...`
+        : `Recording 12-digit UTR (${utrValue}) with Banking Gateway...`
     );
 
     const generatedTxn = `TXN_SSB_${Date.now().toString().slice(-8)}${Math.floor(1000 + Math.random() * 9000)}`;
@@ -245,8 +289,8 @@ export default function PaymentCheckoutModal({
     setTimeout(() => {
       setProcessingStatus(
         isHindi
-          ? 'बैंकिंग लेजर में UTR मिलान स्वीकृत हुआ! सुरक्षा क्रेडेंशियल अपडेट किए जा रहे हैं...'
-          : 'Banking ledger verified settlement! Activating safety credentials...'
+          ? 'UTR संख्या सेंट्रल वेरिफिकेशन लेजर में दर्ज हो रही है (सत्यापन प्रतीक्षारत)...'
+          : 'Recording UTR in Central Admin Verification Ledger (Pending Review)...'
       );
     }, 1200);
 
@@ -261,11 +305,11 @@ export default function PaymentCheckoutModal({
         } catch {}
       }
 
-      // Record in Central Admin Verification Ledger
+      // Record in Central Admin Verification Ledger (Status: PENDING)
       try {
         recordNewUtrSubmission({
           utr: utrValue,
-          userUid: user?.uid || 'SSB-2026-GUEST',
+          userUid: user?.uid || 'SSB-2026-CITIZEN',
           userName: user?.name || 'Citizen User',
           userContact: user?.emailOrPhone || 'citizen@scamshield.live',
           planId: selectedPlan,
@@ -276,17 +320,9 @@ export default function PaymentCheckoutModal({
         console.warn('Failed to record UTR in central admin ledger', e);
       }
 
-      // Apply plan benefits to auth context
-      if (selectedPlan === 'sachet') {
-        addCredits(15);
-      } else if (selectedPlan === 'pro') {
-        activateUnlimited(30);
-      } else if (selectedPlan === 'annual') {
-        activateUnlimited(365);
-      }
-
-      // Transition to official receipt screen (Do NOT auto-close modal; let user see receipt & click Continue)
-      setPaymentStep('success');
+      // STRICT USER RULE: Pro Pass and Top-up credits are NOT allotted immediately!
+      // They are held until verified and approved by Admin in /admin.
+      setPaymentStep('pending');
     }, 2400);
   };
 
@@ -320,11 +356,6 @@ export default function PaymentCheckoutModal({
 
     setUtrError(null);
     executePaymentWithUtr(clean, 'UPI QR Transfer');
-  };
-
-  const handleInstantSimulate = () => {
-    const randomUtr = `43${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-    executePaymentWithUtr(randomUtr, 'Instant Test Simulation');
   };
 
   const handleFillDemoCard = () => {
@@ -779,16 +810,10 @@ Thank you for securing yourself and your family with ScamShield Bharat!
                       </p>
                     )}
 
-                    {/* Quick Test / Demo Simulation helper */}
-                    <div className="pt-1 flex items-center justify-between text-[10px] text-slate-400">
-                      <span>{isHindi ? 'बिना पेमेंट टेस्ट करना है?' : 'Evaluating / Testing?'}</span>
-                      <button
-                        type="button"
-                        onClick={handleInstantSimulate}
-                        className="text-amber-700 hover:underline font-bold cursor-pointer"
-                      >
-                        ⚡ {isHindi ? 'सिमुलेशन टेस्ट (1-Click Test)' : 'Simulate Instant Payment'}
-                      </button>
+                    {/* Verification Notice */}
+                    <div className="pt-1 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+                      <span>🔒 {isHindi ? 'सख्त बैंकिंग सत्यापन नियम' : 'Strict Banking Ledger Rule'}</span>
+                      <span className="text-amber-800 font-bold">{isHindi ? 'एडमिन अनुमोदन आवश्यक' : 'Admin Approval Required'}</span>
                     </div>
                   </div>
                 </div>
@@ -997,7 +1022,97 @@ Thank you for securing yourself and your family with ScamShield Bharat!
             </div>
           )}
 
-          {/* STEP 3: OFFICIAL PAYMENT SUCCESS & RECEIPT */}
+          {/* STEP 3: UTR SUBMITTED - PENDING ADMIN VERIFICATION */}
+          {paymentStep === 'pending' && (
+            <div className="space-y-5 animate-in zoom-in-95">
+              {/* Amber / Gold Pending Hero */}
+              <div className="text-center space-y-2">
+                <div className="w-14 h-14 mx-auto rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shadow-inner">
+                  <Clock className="w-9 h-9 stroke-[2.5] animate-pulse" />
+                </div>
+                <h3 className="text-lg font-black text-slate-900">
+                  {isHindi ? '⏳ UTR सत्यापन हेतु दर्ज हो गया' : '⏳ UTR Recorded — Pending Admin Verification'}
+                </h3>
+                <p className="text-xs text-amber-900 font-bold max-w-md mx-auto">
+                  {isHindi
+                    ? `UTR संख्या ${utrNumber} दर्ज हो गई है। मुख्य व्यवस्थापक (Chief Admin) द्वारा बैंक स्टेटमेंट से पुष्टि होते ही आपका प्रो पास और क्रेडिट्स स्वतः सक्रिय हो जाएंगे।`
+                    : `UTR ${utrNumber} recorded. Your Pro Pass and credits will activate automatically once Chief Admin verifies the UTR against the bank ledger.`}
+                </p>
+              </div>
+
+              {/* Official Acknowledgment Slip Card */}
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs space-y-3 font-mono">
+                <div className="flex items-center justify-between pb-2 border-b border-amber-200">
+                  <span className="font-bold text-amber-900 uppercase tracking-wider text-[10px]">
+                    UTR SUBMISSION ACKNOWLEDGMENT
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> PENDING ADMIN VERIFICATION
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">TRANSACTION ID</span>
+                    <span className="font-bold text-slate-800">{txnId}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">SUBMITTED UTR</span>
+                    <span className="font-bold text-amber-900">{utrNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">CITIZEN NAME & UID</span>
+                    <span className="font-bold text-slate-800 truncate block">
+                      {user?.name} ({user?.uid || 'Citizen'})
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">REQUESTED PLAN</span>
+                    <span className="font-bold text-[#004A87]">
+                      {isHindi ? currentPlan.nameHi : currentPlan.nameEn} (₹{currentPlan.price})
+                    </span>
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-amber-200 font-sans">
+                  <div className="p-2.5 rounded-xl bg-white/90 border border-amber-200 text-[11px] text-amber-950 space-y-1">
+                    <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                      <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>{isHindi ? 'सुरक्षा नियम एवं सक्रियता सूचना:' : 'Security Verification Protocol:'}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-600 leading-relaxed font-sans">
+                      {isHindi
+                        ? 'फर्जी UTR और धोखाधड़ी रोकने हेतु प्रत्येक भुगतान का मिलान बैंक स्टेटमेंट से किया जाता है। व्यवस्थापक द्वारा अप्रूव होने के बाद प्रो फीचर्स तुरंत अनलॉक होंगे।'
+                        : 'To prevent fraudulent UTR submissions, each transaction is confirmed by Admin Command before granting access. Pro features will unlock upon bank ledger approval.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={handleDownloadReceipt}
+                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-slate-500" />
+                  <span>{isHindi ? 'स्लिप डाउनलोड करें (Download Slip)' : 'Download Slip'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-[#004A87] hover:bg-[#003866] text-white font-extrabold text-xs transition-colors shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>{isHindi ? 'ठीक है, समझ गया' : 'Understood, Close'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: OFFICIAL PAYMENT SUCCESS & RECEIPT */}
           {paymentStep === 'success' && (
             <div className="space-y-5 animate-in zoom-in-95">
               {/* Green Success Hero */}

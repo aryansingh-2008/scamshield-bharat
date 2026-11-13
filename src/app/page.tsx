@@ -112,8 +112,12 @@ export default function HomePage() {
       setIsRechargeOpen(true);
       setErrorMessage(
         lang === 'hi'
-          ? '⚠️ आपके 5 मुफ्त सुरक्षा क्रेडिट समाप्त हो गए हैं। आगे जांच जारी रखने के लिए कृपया रीचार्ज करें!'
-          : '⚠️ Your 5 free safety credits have been used. Please recharge to continue scanning!'
+          ? user
+            ? '⚠️ आपके सुरक्षा क्रेडिट समाप्त हो गए हैं। आगे जांच जारी रखने के लिए कृपया रीचार्ज करें!'
+            : '⚠️ आपके डिवाइस/आईपी के 5 मुफ्त ट्रायल स्कैन समाप्त हो गए हैं। आगे स्कैन करने हेतु कृपया लॉगिन करें!'
+          : user
+          ? '⚠️ Your safety credits have been used. Please recharge to continue scanning!'
+          : '⚠️ Your 5 free trial scans on this device/IP have been used. Please sign in to continue!'
       );
       return;
     }
@@ -123,14 +127,22 @@ export default function HomePage() {
     setErrorMessage(null);
 
     try {
+      const headers = new Headers(requestOptions.headers || {});
+      if (user?.uid) {
+        headers.set('x-user-uid', user.uid);
+      }
+
       const response = await fetch(requestOptions.url, {
         method: 'POST',
-        headers: requestOptions.headers,
+        headers,
         body: requestOptions.body,
       });
 
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 402) {
+          setIsRechargeOpen(true);
+        }
         throw new Error(data.error || defaultErrorMessage);
       }
 
