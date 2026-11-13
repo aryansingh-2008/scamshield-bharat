@@ -433,18 +433,6 @@ export default function UserProfileModal({ isOpen, onClose, lang }: UserProfileM
             </button>
           </div>
         </div>
-
-        {/* Master Admin Portal Footer Shortcut */}
-        <div className="pt-1 text-center border-t border-slate-100">
-          <Link
-            href="/admin"
-            onClick={onClose}
-            className="text-[11px] text-slate-400 hover:text-[#004A87] font-mono underline inline-flex items-center gap-1 transition-colors"
-          >
-            <Lock className="w-3 h-3 text-amber-500" />
-            <span>Master Admin Command Center (/admin)</span>
-          </Link>
-        </div>
       </div>
     </div>
   );

@@ -27,7 +27,7 @@ interface AuthContextType {
   login: (profile: UserProfile) => void;
   updateUser: (updated: Partial<UserProfile>) => void;
   loginAsDemo: (type: 'investor' | 'investigator') => void;
-  loginAsAdmin: () => void;
+  loginAsAdmin: (passkey?: string) => boolean;
   skipLogin: () => void;
   logout: () => void;
   resetAuth: () => void;
@@ -40,6 +40,15 @@ const STORAGE_KEY_SKIPPED = 'scamshield_login_skipped';
 const STORAGE_KEY_CREDITS = 'scamshield_user_credits';
 const STORAGE_KEY_UNLIMITED = 'scamshield_unlimited_expiry';
 const DEFAULT_INITIAL_CREDITS = 5;
+
+// Master Admin Confidential Passkey & PIN
+export const MASTER_ADMIN_PASSKEY = 'ScamShield@2026';
+export const MASTER_ADMIN_PIN = '789012';
+
+export const verifyAdminPasskey = (input: string): boolean => {
+  const clean = input.trim();
+  return clean === MASTER_ADMIN_PASSKEY || clean === MASTER_ADMIN_PIN;
+};
 
 // Designated Master Admin Account
 export const MASTER_ADMIN_USER: UserProfile = {
@@ -204,8 +213,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login(demoProfile);
   };
 
-  const loginAsAdmin = () => {
+  const loginAsAdmin = (passkey?: string): boolean => {
+    if (passkey !== undefined && !verifyAdminPasskey(passkey)) {
+      return false;
+    }
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('scamshield_admin_authenticated', 'true');
+    }
     login(MASTER_ADMIN_USER);
+    return true;
   };
 
   const skipLogin = () => {
@@ -224,6 +240,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.removeItem(STORAGE_KEY_USER);
       localStorage.removeItem(STORAGE_KEY_SKIPPED);
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('scamshield_admin_authenticated');
+      }
     } catch (e) {
       console.warn('Failed to remove auth session', e);
     }
