@@ -23,6 +23,7 @@ import SafetyTipsModal from '@/components/SafetyTipsModal';
 import AboutModal from '@/components/AboutModal';
 import TermsModal from '@/components/TermsModal';
 import UserProfileModal from '@/components/UserProfileModal';
+import CreditRechargeModal from '@/components/CreditRechargeModal';
 import SmartRiskWarningModal from '@/components/SmartRiskWarningModal';
 import OfficialSourcesPage from '@/components/OfficialSourcesPage';
 import Footer from '@/components/Footer';
@@ -44,7 +45,7 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const { user, isSkipped, skipLogin } = useAuth();
+  const { user, isSkipped, skipLogin, consumeCredit, credits, isUnlimited } = useAuth();
   const [lang, setLang] = useState<'en' | 'hi'>('en');
   const isHindi = lang === 'hi';
   const [currentView, setCurrentView] = useState<'home' | 'sources'>('home');
@@ -71,6 +72,7 @@ export default function HomePage() {
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isRechargeOpen, setIsRechargeOpen] = useState(false);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
 
   const inputSectionRef = useRef<HTMLDivElement>(null);
@@ -105,6 +107,17 @@ export default function HomePage() {
     },
     defaultErrorMessage: string
   ) => {
+    // Quota / Credit check
+    if (!consumeCredit()) {
+      setIsRechargeOpen(true);
+      setErrorMessage(
+        lang === 'hi'
+          ? '⚠️ आपके 5 मुफ्त सुरक्षा क्रेडिट समाप्त हो गए हैं। आगे जांच जारी रखने के लिए कृपया रीचार्ज करें!'
+          : '⚠️ Your 5 free safety credits have been used. Please recharge to continue scanning!'
+      );
+      return;
+    }
+
     setCurrentView('home');
     setIsLoading(true);
     setErrorMessage(null);
@@ -261,6 +274,7 @@ export default function HomePage() {
         onOpenSecurity={() => setIsSecurityOpen(true)}
         onOpenTerms={() => setIsTermsOpen(true)}
         onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenRecharge={() => setIsRechargeOpen(true)}
         onNavigateHome={handleResetCheck}
         onNavigateSources={() => setCurrentView('sources')}
         onTriggerDemo={() => scrollToInput('demo')}
@@ -803,6 +817,12 @@ export default function HomePage() {
       <UserProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
+        lang={lang}
+      />
+
+      <CreditRechargeModal
+        isOpen={isRechargeOpen}
+        onClose={() => setIsRechargeOpen(false)}
         lang={lang}
       />
 

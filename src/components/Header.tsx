@@ -18,6 +18,7 @@ import {
   User,
   Shield,
   Scale,
+  Coins,
 } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 import { useAuth } from '@/lib/auth-context';
@@ -32,6 +33,7 @@ interface HeaderProps {
   onOpenSecurity?: () => void;
   onOpenTerms?: () => void;
   onOpenProfile?: () => void;
+  onOpenRecharge?: () => void;
   onNavigateHome: () => void;
   onNavigateSources?: () => void;
   onTriggerDemo?: () => void;
@@ -47,6 +49,7 @@ export default function Header({
   onOpenSecurity,
   onOpenTerms,
   onOpenProfile,
+  onOpenRecharge,
   onNavigateHome,
   onNavigateSources,
   onTriggerDemo,
@@ -54,7 +57,7 @@ export default function Header({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isHindi = lang === 'hi';
   const t = TRANSLATIONS[lang];
-  const { user, logout } = useAuth();
+  const { user, logout, credits, isUnlimited } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white shadow-xs">
@@ -235,6 +238,31 @@ export default function Header({
             </span>
           </button>
 
+          {/* Credit Quota & Recharge Button */}
+          {onOpenRecharge && (
+            <button
+              onClick={onOpenRecharge}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-2xs ${
+                isUnlimited
+                  ? 'bg-amber-50/90 border-amber-300 text-amber-900 hover:bg-amber-100'
+                  : credits > 2
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                  : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100 animate-pulse'
+              }`}
+              title={isHindi ? 'सुरक्षा क्रेडिट्स बैलेंस व रीचार्ज' : 'Safety Credits Balance & Recharge'}
+            >
+              <Coins className="w-3.5 h-3.5 text-amber-600" />
+              <span>
+                {isUnlimited
+                  ? '👑 Pro'
+                  : `${credits} ${isHindi ? 'क्रेडिट' : 'Credits'}`}
+              </span>
+              <span className="text-[10px] px-1 py-0.2 bg-amber-200/80 text-amber-900 rounded font-extrabold hidden sm:inline">
+                {isHindi ? 'रीचार्ज (₹9)' : 'Top-up'}
+              </span>
+            </button>
+          )}
+
           {/* Authentication Badge / Login Button */}
           {user ? (
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -339,6 +367,29 @@ export default function Header({
                 {isHindi ? 'लॉगिन करें' : 'Sign In'}
               </Link>
             </div>
+          )}
+
+          {/* Mobile Credit Recharge Banner */}
+          {onOpenRecharge && (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenRecharge();
+              }}
+              className="w-full flex items-center justify-between p-2.5 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-amber-700" />
+                <span>
+                  {isUnlimited
+                    ? '👑 Pro Unlimited Pass'
+                    : `🪙 ${credits} ${isHindi ? 'क्रेडिट्स शेष' : 'Credits Left'}`}
+                </span>
+              </div>
+              <span className="text-[11px] px-2.5 py-0.5 rounded-lg bg-amber-200 text-amber-900 font-extrabold shadow-2xs">
+                {isHindi ? 'रीचार्ज (₹9)' : 'Top-up (₹9)'}
+              </span>
+            </button>
           )}
 
           <button
