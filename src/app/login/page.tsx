@@ -16,7 +16,14 @@ import {
   RefreshCw,
   User,
 } from 'lucide-react';
-import { useAuth, MASTER_ADMIN_USER, verifyAdminPasskey } from '@/lib/auth-context';
+import {
+  useAuth,
+  MASTER_ADMIN_USER,
+  PRESIDENT_USER,
+  PRESIDENT_PASSKEY,
+  PRESIDENT_PIN,
+  verifyAdminPasskey,
+} from '@/lib/auth-context';
 
 function LoginContent() {
   const router = useRouter();
@@ -65,15 +72,25 @@ function LoginContent() {
     router.push(redirectPath);
   };
 
-  // Safe validation for Indian mobile numbers (10 digits starting with 6-9) or emails
+  // Safe validation for Indian mobile numbers (10 digits starting with 6-9), emails, or official executive IDs
   const validateIdentifier = (val: string): { isValid: boolean; error: string; errorHi: string } => {
     const cleaned = val.trim();
     if (!cleaned) {
       return {
         isValid: false,
-        error: 'Please enter your mobile number or email address.',
-        errorHi: 'कृपया अपना मोबाइल नंबर या ईमेल पता दर्ज करें।',
+        error: 'Please enter your mobile number, email, or official ID.',
+        errorHi: 'कृपया अपना मोबाइल नंबर, ईमेल पता या आधिकारिक ID दर्ज करें।',
       };
+    }
+
+    const cleanLower = cleaned.toLowerCase();
+    if (
+      cleanLower === 'admin' ||
+      cleanLower === 'arti' ||
+      cleanLower === 'president' ||
+      cleanLower.startsWith('ssb-')
+    ) {
+      return { isValid: true, error: '', errorHi: '' };
     }
 
     if (cleaned.includes('@')) {
@@ -140,12 +157,51 @@ function LoginContent() {
 
     setIsSubmitting(true);
     setTimeout(() => {
+      const cleanIdent = identifier.toLowerCase().trim();
+      const cleanPass = password.trim();
+
+      // 1. Site President Executive Authentication (Arti)
+      const isPresident =
+        cleanIdent === 'arti' ||
+        cleanIdent === 'president' ||
+        cleanIdent === 'arti@scamshieldbharat.live' ||
+        cleanIdent === 'president@scamshieldbharat.live' ||
+        cleanIdent === 'ssb-president-0001';
+
+      if (isPresident) {
+        const isValidPass =
+          cleanPass === PRESIDENT_PASSKEY ||
+          cleanPass === PRESIDENT_PIN ||
+          verifyAdminPasskey(cleanPass);
+
+        if (!isValidPass) {
+          setAuthError(
+            isHindi
+              ? 'अमान्य प्रेसिडेंट सुरक्षा पासवर्ड। केवल अधिकृत प्रेसिडेंट ही लॉगिन कर सकते हैं।'
+              : 'Access Denied: Invalid President Security Passkey or PIN.'
+          );
+          setIsSubmitting(false);
+          refreshCaptcha();
+          return;
+        }
+
+        login(PRESIDENT_USER);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('scamshield_admin_authenticated', 'true');
+        }
+        setIsSubmitting(false);
+        router.push(redirectPath === '/' ? '/admin' : redirectPath);
+        return;
+      }
+
+      // 2. Chief System Administrator Authentication (Aryan Singh)
       const isMasterAdmin =
-        identifier.toLowerCase().trim() === 'admin' ||
-        identifier.toLowerCase().trim() === 'admin@scamshieldbharat.live';
+        cleanIdent === 'admin' ||
+        cleanIdent === 'admin@scamshieldbharat.live' ||
+        cleanIdent === 'ssb-admin-0001';
 
       if (isMasterAdmin) {
-        if (!verifyAdminPasskey(password)) {
+        if (!verifyAdminPasskey(cleanPass)) {
           setAuthError(
             isHindi
               ? 'अमान्य मास्टर एडमिन सुरक्षा पासवर्ड। केवल अधिकृत एडमिन ही लॉगिन कर सकते हैं।'
@@ -165,6 +221,7 @@ function LoginContent() {
         return;
       }
 
+      // 3. Citizen / Investor / Investigator Member Login
       login({
         name: signinName.trim() || (identifier.includes('@')
           ? identifier.split('@')[0]

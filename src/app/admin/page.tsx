@@ -127,16 +127,13 @@ export default function AdminPage() {
         return;
       }
 
-      if (!verifyAdminPasskey(clean)) {
+      const ok = loginAsAdmin(clean);
+      if (!ok) {
         setPasskeyError('Access Denied: Invalid Security Passkey. Unauthorized entry attempt recorded.');
         setIsVerifying(false);
         return;
       }
 
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('scamshield_admin_authenticated', 'true');
-      }
-      loginAsAdmin();
       setIsAuthenticated(true);
       setIsVerifying(false);
       reloadData();
@@ -178,7 +175,8 @@ export default function AdminPage() {
 
   // Admin Actions on UTRs
   const handleApproveUtr = (utr: string) => {
-    adminApproveUtr(utr, 'Manually approved by Master Admin');
+    const reviewer = user?.name || 'Master Admin';
+    adminApproveUtr(utr, `Approved by ${reviewer}`, reviewer);
     reloadData();
     showNotification(`UTR ${utr} approved! Credits and access granted to citizen.`);
   };
@@ -381,11 +379,13 @@ export default function AdminPage() {
                   ScamShield Bharat Admin
                 </h1>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-black bg-amber-400 text-slate-950">
-                  SUPER ADMIN
+                  {user?.uid === 'SSB-PRESIDENT-0001' ? '👑 PRESIDENT' : 'SUPER ADMIN'}
                 </span>
               </div>
               <p className="text-[11px] text-blue-200 font-mono">
-                Central Citizen Registry &amp; UTR Payment Verification Command
+                {user?.uid === 'SSB-PRESIDENT-0001'
+                  ? 'President Executive Command & Central Registry'
+                  : 'Central Citizen Registry & UTR Payment Verification Command'}
               </p>
             </div>
           </div>
@@ -396,7 +396,8 @@ export default function AdminPage() {
           <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/10 border border-white/20 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             <span className="text-blue-100 font-mono">
-              Admin: <strong className="text-white">{user?.name || MASTER_ADMIN_USER.name}</strong>
+              {user?.uid === 'SSB-PRESIDENT-0001' ? 'President:' : 'Admin:'}{' '}
+              <strong className="text-white">{user?.name || MASTER_ADMIN_USER.name}</strong>
             </span>
             <span className="text-[10px] font-mono text-amber-300 bg-amber-400/20 px-1.5 py-0.5 rounded border border-amber-300/30">
               {user?.uid || MASTER_ADMIN_USER.uid}

@@ -196,15 +196,27 @@ export default function Header({
             </button>
           )}
 
-          {/* Admin Command Link (ONLY visible if logged-in user is Chief Admin) */}
+          {/* Admin / President Command Link (ONLY visible if logged-in user is Chief Admin or President) */}
           {user?.role === 'admin' && (
             <Link
               href="/admin"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-              title="Chief Admin Console (/admin)"
+              title={
+                user?.uid === 'SSB-PRESIDENT-0001'
+                  ? 'President Executive Command (/admin)'
+                  : 'Chief Admin Console (/admin)'
+              }
             >
               <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-              <span>{isHindi ? 'एडमिन' : 'Admin'}</span>
+              <span>
+                {user?.uid === 'SSB-PRESIDENT-0001'
+                  ? isHindi
+                    ? '👑 प्रेसिडेंट'
+                    : '👑 President'
+                  : isHindi
+                  ? 'एडमिन'
+                  : 'Admin'}
+              </span>
             </Link>
           )}
         </nav>
