@@ -1,11 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { generateCitizenId, syncCurrentUserToRegistry } from './user-registry';
 
 export interface UserProfile {
+  uid?: string; // Citizen Unique ID (e.g. "SSB-2026-8491" or "SSB-ADMIN-0001")
   name: string;
   emailOrPhone: string;
-  role: 'investor' | 'investigator' | 'guest';
+  role: 'investor' | 'investigator' | 'guest' | 'admin';
   designation?: string;
   organization?: string;
   verified?: boolean;
@@ -16,6 +18,7 @@ export interface UserProfile {
 interface AuthContextType {
   user: UserProfile | null;
   isSkipped: boolean;
+  isAdmin: boolean;
   credits: number;
   isUnlimited: boolean;
   consumeCredit: () => boolean;
@@ -24,6 +27,7 @@ interface AuthContextType {
   login: (profile: UserProfile) => void;
   updateUser: (updated: Partial<UserProfile>) => void;
   loginAsDemo: (type: 'investor' | 'investigator') => void;
+  loginAsAdmin: () => void;
   skipLogin: () => void;
   logout: () => void;
   resetAuth: () => void;
@@ -37,8 +41,22 @@ const STORAGE_KEY_CREDITS = 'scamshield_user_credits';
 const STORAGE_KEY_UNLIMITED = 'scamshield_unlimited_expiry';
 const DEFAULT_INITIAL_CREDITS = 5;
 
+// Designated Master Admin Account
+export const MASTER_ADMIN_USER: UserProfile = {
+  uid: 'SSB-ADMIN-0001',
+  name: 'Aryan Singh (Chief Admin)',
+  emailOrPhone: 'admin@scamshieldbharat.live',
+  role: 'admin',
+  designation: 'Chief Cyber Safety Officer & System Administrator',
+  organization: 'ScamShield Bharat (IIT BHU Civic Initiative)',
+  verified: true,
+  autoRedactPii: false,
+  highSensitivity: true,
+};
+
 export const DEMO_USERS = {
   investor: {
+    uid: 'SSB-2026-784210',
     name: 'Vikram Sharma',
     emailOrPhone: 'vikram.investor@gmail.com',
     role: 'investor' as const,
@@ -47,6 +65,7 @@ export const DEMO_USERS = {
     verified: true,
   },
   investigator: {
+    uid: 'SSB-2026-391842',
     name: 'Inspector Anita Verma',
     emailOrPhone: 'anita.verma@cybercrime.gov.in',
     role: 'investigator' as const,
@@ -68,7 +87,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const savedUser = localStorage.getItem(STORAGE_KEY_USER);
       if (savedUser) {
-        setUser(JSON.parse(savedUser));
+        const parsed: UserProfile = JSON.parse(savedUser);
+        // Ensure every user has a unique Citizen Safety ID (UID)
+        if (!parsed.uid) {
+          parsed.uid = generateCitizenId();
+          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(parsed));
+        }
+        setUser(parsed);
+        // Automatically sync to master registry
+        syncCurrentUserToRegistry(parsed);
+
+        // If admin, automatically grant unlimited access
+        if (parsed.role === 'admin') {
+          setIsUnlimited(true);
+        }
       }
       const savedSkip = localStorage.getItem(STORAGE_KEY_SKIPPED);
       if (savedSkip === 'true') {
@@ -96,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const consumeCredit = (): boolean => {
-    if (isUnlimited) return true;
+    if (isUnlimited || user?.role === 'admin') return true;
     if (credits <= 0) return false;
     const next = credits - 1;
     setCredits(next);
@@ -116,6 +148,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.warn('Failed to save top-up credits', e);
     }
+    if (user) {
+      syncCurrentUserToRegistry({ ...user, credits: next });
+    }
   };
 
   const activateUnlimited = (days: number) => {
@@ -126,17 +161,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.warn('Failed to save unlimited pass', e);
     }
+    if (user) {
+      syncCurrentUserToRegistry({ ...user, isUnlimited: true });
+    }
   };
 
   const login = (profile: UserProfile) => {
-    setUser(profile);
+    // Ensure UID exists
+    const withUid: UserProfile = {
+      ...profile,
+      uid: profile.uid || generateCitizenId(),
+    };
+    setUser(withUid);
     setIsSkipped(false);
+    if (withUid.role === 'admin') {
+      setIsUnlimited(true);
+    }
     try {
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(profile));
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(withUid));
       localStorage.removeItem(STORAGE_KEY_SKIPPED);
     } catch (e) {
       console.warn('Failed to save user', e);
     }
+    // Sync into the central directory
+    syncCurrentUserToRegistry(withUid);
   };
 
   const updateUser = (updated: Partial<UserProfile>) => {
@@ -148,11 +196,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.warn('Failed to update user in localStorage', e);
     }
+    syncCurrentUserToRegistry(newProfile);
   };
 
   const loginAsDemo = (type: 'investor' | 'investigator') => {
     const demoProfile = DEMO_USERS[type];
     login(demoProfile);
+  };
+
+  const loginAsAdmin = () => {
+    login(MASTER_ADMIN_USER);
   };
 
   const skipLogin = () => {
@@ -180,19 +233,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout();
   };
 
+  const isAdmin = user?.role === 'admin';
+
   return (
     <AuthContext.Provider
       value={{
         user,
         isSkipped,
+        isAdmin,
         credits,
-        isUnlimited,
+        isUnlimited: isUnlimited || isAdmin,
         consumeCredit,
         addCredits,
         activateUnlimited,
         login,
         updateUser,
         loginAsDemo,
+        loginAsAdmin,
         skipLogin,
         logout,
         resetAuth,

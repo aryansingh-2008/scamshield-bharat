@@ -16,7 +16,7 @@ import {
   RefreshCw,
   User,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
+import { useAuth, MASTER_ADMIN_USER } from '@/lib/auth-context';
 
 function LoginContent() {
   const router = useRouter();
@@ -140,6 +140,17 @@ function LoginContent() {
 
     setIsSubmitting(true);
     setTimeout(() => {
+      const isMasterAdmin =
+        identifier.toLowerCase().trim() === 'admin' ||
+        identifier.toLowerCase().trim() === 'admin@scamshieldbharat.live';
+
+      if (isMasterAdmin) {
+        login(MASTER_ADMIN_USER);
+        setIsSubmitting(false);
+        router.push('/admin');
+        return;
+      }
+
       login({
         name: signinName.trim() || (identifier.includes('@')
           ? identifier.split('@')[0]
@@ -483,6 +494,21 @@ function LoginContent() {
                     </>
                   )}
                 </button>
+
+                {/* Master Admin Fast Access Button */}
+                <div className="pt-2 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      login(MASTER_ADMIN_USER);
+                      router.push('/admin');
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs flex items-center justify-center gap-2 border border-amber-400/30 transition-all cursor-pointer shadow-xs"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    <span>🛡️ Master Admin Quick Access (/admin)</span>
+                  </button>
+                </div>
               </form>
             )}
 

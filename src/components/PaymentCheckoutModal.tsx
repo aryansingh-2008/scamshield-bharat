@@ -26,6 +26,7 @@ import {
   Hash,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
+import { recordNewUtrSubmission } from '@/lib/user-registry';
 
 export type PlanType = 'sachet' | 'pro' | 'annual';
 
@@ -90,7 +91,7 @@ export default function PaymentCheckoutModal({
   initialPlan = 'pro',
   onPaymentSuccess,
 }: PaymentCheckoutModalProps) {
-  const { addCredits, activateUnlimited } = useAuth();
+  const { user, addCredits, activateUnlimited } = useAuth();
   const isHindi = lang === 'hi';
 
   const [selectedPlan, setSelectedPlan] = useState<PlanType>(initialPlan);
@@ -258,6 +259,21 @@ export default function PaymentCheckoutModal({
           list.push({ utr: utrValue, amount: currentPlan.price, date: new Date().toISOString() });
           localStorage.setItem('scamshield_verified_utrs', JSON.stringify(list));
         } catch {}
+      }
+
+      // Record in Central Admin Verification Ledger
+      try {
+        recordNewUtrSubmission({
+          utr: utrValue,
+          userUid: user?.uid || 'SSB-2026-GUEST',
+          userName: user?.name || 'Citizen User',
+          userContact: user?.emailOrPhone || 'citizen@scamshield.live',
+          planId: selectedPlan,
+          amount: currentPlan.price,
+          beneficiaryUpi: recipientUpi,
+        });
+      } catch (e) {
+        console.warn('Failed to record UTR in central admin ledger', e);
       }
 
       // Apply plan benefits to auth context
@@ -557,6 +573,7 @@ Thank you for securing yourself and your family with ScamShield Bharat!
                     <div className="relative p-3 bg-white rounded-2xl border-2 border-slate-300 shadow-sm flex flex-col items-center shrink-0">
                       <div className="relative w-44 h-44 bg-white flex items-center justify-center overflow-hidden rounded-xl">
                         {qrCodeDataUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={qrCodeDataUrl}
                             alt="Scannable UPI QR Code"

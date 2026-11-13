@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import {
   X,
   User,
@@ -19,6 +20,7 @@ import {
   Save,
   Edit3,
   Check,
+  Copy,
 } from 'lucide-react';
 import { useAuth, UserProfile } from '@/lib/auth-context';
 import { OFFICIAL_SOURCES, CYBERCRIME_HELPLINE } from '@/lib/official-sources';
@@ -38,6 +40,7 @@ export default function UserProfileModal({ isOpen, onClose, lang }: UserProfileM
   const [autoRedact, setAutoRedact] = useState(user?.autoRedactPii ?? true);
   const [highSens, setHighSens] = useState(user?.highSensitivity ?? true);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [copiedUid, setCopiedUid] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -237,6 +240,38 @@ export default function UserProfileModal({ isOpen, onClose, lang }: UserProfileM
             </div>
           </div>
 
+          {/* 🆔 UNIQUE CITIZEN SAFETY ID (UID) WITH COPY BUTTON */}
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 text-xs relative z-10">
+            <div className="flex items-center gap-2 font-mono">
+              <span className="text-amber-300 font-bold text-[11px]">🆔 CITIZEN UID:</span>
+              <span className="text-white font-extrabold tracking-wider">{user?.uid || 'SSB-2026-ACTIVE'}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(user?.uid || 'SSB-2026-ACTIVE');
+                setCopiedUid(true);
+                setTimeout(() => setCopiedUid(false), 2000);
+              }}
+              className="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white/30 text-[10px] font-bold text-white transition-colors flex items-center gap-1 cursor-pointer"
+            >
+              {copiedUid ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedUid ? 'Copied' : 'Copy UID'}</span>
+            </button>
+          </div>
+
+          {/* Master Admin Shortcut if User is Admin */}
+          {user?.role === 'admin' && (
+            <Link
+              href="/admin"
+              onClick={onClose}
+              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer relative z-10"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>🛡️ Open Master Admin Console (/admin)</span>
+            </Link>
+          )}
+
           <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/15 text-xs relative z-10">
             <div className="bg-white/10 rounded-lg p-2 backdrop-blur-xs">
               <span className="text-[10px] text-slate-300 block">
@@ -397,6 +432,18 @@ export default function UserProfileModal({ isOpen, onClose, lang }: UserProfileM
               {isHindi ? 'बंद करें' : 'Close'}
             </button>
           </div>
+        </div>
+
+        {/* Master Admin Portal Footer Shortcut */}
+        <div className="pt-1 text-center border-t border-slate-100">
+          <Link
+            href="/admin"
+            onClick={onClose}
+            className="text-[11px] text-slate-400 hover:text-[#004A87] font-mono underline inline-flex items-center gap-1 transition-colors"
+          >
+            <Lock className="w-3 h-3 text-amber-500" />
+            <span>Master Admin Command Center (/admin)</span>
+          </Link>
         </div>
       </div>
     </div>

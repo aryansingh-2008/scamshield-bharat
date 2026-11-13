@@ -204,7 +204,15 @@ export default function CreditRechargeModal({
                 }}
                 className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>{isHindi ? '₹9 में 15 स्कैन लें' : 'Get 15 Scans for ₹9'}</span>
+                <span>
+                  {isUnlimited
+                    ? isHindi
+                      ? '₹9 में +15 बैकअप स्कैन जोड़ें'
+                      : 'Add +15 Reserve Scans (₹9)'
+                    : isHindi
+                    ? '₹9 में 15 स्कैन लें'
+                    : 'Get 15 Scans for ₹9'}
+                </span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -220,7 +228,15 @@ export default function CreditRechargeModal({
             >
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[10px] font-black tracking-wider uppercase shadow-xs flex items-center gap-1">
                 <Flame className="w-3 h-3 fill-current" />
-                <span>{isHindi ? 'सबसे लोकप्रिय' : 'Most Popular'}</span>
+                <span>
+                  {isUnlimited
+                    ? isHindi
+                      ? 'वर्तमान में सक्रिय'
+                      : 'Currently Active'
+                    : isHindi
+                    ? 'सबसे लोकप्रिय'
+                    : 'Most Popular'}
+                </span>
               </div>
 
               <div>
@@ -229,7 +245,7 @@ export default function CreditRechargeModal({
                     <Crown className="w-4 h-4" />
                   </span>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-                    PRO PASS
+                    {isUnlimited ? (isHindi ? 'सक्रिय प्रो' : 'ACTIVE PRO') : 'PRO PASS'}
                   </span>
                 </div>
                 <h4 className="font-extrabold text-sm text-slate-900">
@@ -279,7 +295,15 @@ export default function CreditRechargeModal({
                 }}
                 className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-extrabold text-xs transition-all shadow-md hover:shadow-lg cursor-pointer active:scale-95 flex items-center justify-center gap-1.5"
               >
-                <span>{isHindi ? '₹19 में प्रो पास लें' : 'Get Pro Pass for ₹19'}</span>
+                <span>
+                  {isUnlimited
+                    ? isHindi
+                      ? '₹19 में +30 दिन बढ़ाएं'
+                      : 'Extend +30 Days for ₹19'
+                    : isHindi
+                    ? '₹19 में प्रो पास लें'
+                    : 'Get Pro Pass for ₹19'}
+                </span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -343,7 +367,15 @@ export default function CreditRechargeModal({
                 }}
                 className="w-full py-2 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer flex items-center justify-center gap-1.5"
               >
-                <span>{isHindi ? '₹149 में 1 साल लें' : 'Get 1 Year for ₹149'}</span>
+                <span>
+                  {isUnlimited
+                    ? isHindi
+                      ? '₹149 में वार्षिक अपग्रेड करें'
+                      : 'Upgrade to Annual (₹149)'
+                    : isHindi
+                    ? '₹149 में 1 साल लें'
+                    : 'Get 1 Year for ₹149'}
+                </span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -362,9 +394,21 @@ export default function CreditRechargeModal({
                     {selectedPlan === 'sachet' &&
                       (isHindi ? 'मिनी सैशे पैक (₹9)' : 'Mini Sachet Pack (₹9)')}
                     {selectedPlan === 'pro' &&
-                      (isHindi ? 'मासिक प्रो पास (₹19)' : 'Monthly Pro Pass (₹19)')}
+                      (isHindi
+                        ? isUnlimited
+                          ? 'मासिक प्रो पास (+30 दिन विस्तार ₹19)'
+                          : 'मासिक प्रो पास (₹19)'
+                        : isUnlimited
+                        ? 'Monthly Pro Pass (Extend +30 Days ₹19)'
+                        : 'Monthly Pro Pass (₹19)')}
                     {selectedPlan === 'annual' &&
-                      (isHindi ? 'वार्षिक पास (₹149)' : 'Annual Shield Pass (₹149)')}
+                      (isHindi
+                        ? isUnlimited
+                          ? 'वार्षिक पास (अपग्रेड ₹149)'
+                          : 'वार्षिक पास (₹149)'
+                        : isUnlimited
+                        ? 'Annual Shield Pass (Upgrade ₹149)'
+                        : 'Annual Shield Pass (₹149)')}
                   </span>
                 </p>
                 <p className="text-[11px] text-slate-300">
@@ -383,7 +427,19 @@ export default function CreditRechargeModal({
               <ShieldCheck className="w-4 h-4" />
               <span>
                 {isHindi
-                  ? `₹${selectedPlan === 'sachet' ? 9 : selectedPlan === 'pro' ? 19 : 149} सुरक्षित भुगतान करें`
+                  ? selectedPlan === 'pro' && isUnlimited
+                    ? '₹19 में प्रो पास +30 दिन बढ़ाएं'
+                    : selectedPlan === 'annual' && isUnlimited
+                    ? '₹149 में वार्षिक अपग्रेड करें'
+                    : selectedPlan === 'sachet' && isUnlimited
+                    ? '₹9 में +15 बैकअप स्कैन जोड़ें'
+                    : `₹${selectedPlan === 'sachet' ? 9 : selectedPlan === 'pro' ? 19 : 149} सुरक्षित भुगतान करें`
+                  : selectedPlan === 'pro' && isUnlimited
+                  ? 'Extend Pro Pass (+30 Days) - Pay ₹19'
+                  : selectedPlan === 'annual' && isUnlimited
+                  ? 'Upgrade to Annual (365 Days) - Pay ₹149'
+                  : selectedPlan === 'sachet' && isUnlimited
+                  ? 'Add +15 Reserve Scans - Pay ₹9'
                   : `Pay ₹${selectedPlan === 'sachet' ? 9 : selectedPlan === 'pro' ? 19 : 149} Securely`}
               </span>
               <ArrowRight className="w-4 h-4" />
