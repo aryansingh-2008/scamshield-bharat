@@ -196,15 +196,17 @@ export default function Header({
             </button>
           )}
 
-          {/* Admin Command Link */}
-          <Link
-            href="/admin"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
-            title="Chief Admin Console (/admin)"
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-            <span>{isHindi ? 'एडमिन' : 'Admin'}</span>
-          </Link>
+          {/* Admin Command Link (ONLY visible if logged-in user is Chief Admin) */}
+          {user?.role === 'admin' && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
+              title="Chief Admin Console (/admin)"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>{isHindi ? 'एडमिन' : 'Admin'}</span>
+            </Link>
+          )}
         </nav>
 
         {/* Action Controls & Navigation */}
@@ -476,14 +478,16 @@ export default function Header({
             </button>
           )}
 
-          <Link
-            href="/admin"
-            onClick={() => setIsMobileMenuOpen(false)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg text-left transition-colors"
-          >
-            <ShieldCheck className="w-4 h-4 text-amber-600" />
-            <span>{isHindi ? '🛡️ चीफ एडमिन कंसोल (/admin)' : '🛡️ Chief Admin Console (/admin)'}</span>
-          </Link>
+          {user?.role === 'admin' && (
+            <Link
+              href="/admin"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg text-left transition-colors"
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
+              <span>{isHindi ? '🛡️ चीफ एडमिन कंसोल (/admin)' : '🛡️ Chief Admin Console (/admin)'}</span>
+            </Link>
+          )}
 
           {onOpenAbout && (
             <button

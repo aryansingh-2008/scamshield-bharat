@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ShieldCheck,
+  ShieldAlert,
   Users,
   CreditCard,
   CheckCircle2,
@@ -20,6 +21,10 @@ import {
   RefreshCw,
   ExternalLink,
   Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  LogOut,
   Edit3,
   PlusCircle,
   DollarSign,
@@ -28,7 +33,7 @@ import {
   QrCode,
   Save,
 } from 'lucide-react';
-import { useAuth, MASTER_ADMIN_USER } from '@/lib/auth-context';
+import { useAuth, MASTER_ADMIN_USER, verifyAdminPasskey } from '@/lib/auth-context';
 import {
   RegisteredCitizen,
   UtrTransaction,
@@ -43,7 +48,14 @@ import {
 } from '@/lib/user-registry';
 
 export default function AdminPage() {
-  const { user, loginAsAdmin } = useAuth();
+  const { user, loginAsAdmin, logout } = useAuth();
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [checkingAuth, setCheckingAuth] = useState<boolean>(true);
+  const [passkeyInput, setPasskeyInput] = useState('');
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [showPasskey, setShowPasskey] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'citizens' | 'utr' | 'settings'>('citizens');
   const [citizens, setCitizens] = useState<RegisteredCitizen[]>([]);
@@ -86,8 +98,55 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    reloadData();
-  }, []);
+    if (typeof window !== 'undefined') {
+      const isAuthedSession = sessionStorage.getItem('scamshield_admin_authenticated') === 'true';
+      if (user?.role === 'admin' && isAuthedSession) {
+        setIsAuthenticated(true);
+        reloadData();
+      } else {
+        setIsAuthenticated(false);
+      }
+      setCheckingAuth(false);
+    }
+  }, [user]);
+
+  const handleUnlockAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasskeyError(null);
+    setIsVerifying(true);
+
+    setTimeout(() => {
+      const clean = passkeyInput.trim();
+      if (!clean) {
+        setPasskeyError('Please enter the Master Admin Security Passkey.');
+        setIsVerifying(false);
+        return;
+      }
+
+      if (!verifyAdminPasskey(clean)) {
+        setPasskeyError('Access Denied: Invalid Security Passkey. Unauthorized entry attempt recorded.');
+        setIsVerifying(false);
+        return;
+      }
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('scamshield_admin_authenticated', 'true');
+      }
+      loginAsAdmin();
+      setIsAuthenticated(true);
+      setIsVerifying(false);
+      reloadData();
+    }, 400);
+  };
+
+  const handleLockAdmin = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('scamshield_admin_authenticated');
+    }
+    setIsAuthenticated(false);
+    setPasskeyInput('');
+    logout();
+  };
 
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard?.writeText(text);
@@ -157,6 +216,126 @@ export default function AdminPage() {
     return t.status === utrFilter;
   });
 
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+        <div className="flex items-center gap-3 text-sm text-slate-400 font-mono">
+          <RefreshCw className="w-5 h-5 animate-spin text-amber-400" />
+          <span>Verifying cryptographic security credentials...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4 sm:p-6 font-sans">
+        <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 sm:p-8 space-y-6 shadow-2xl relative overflow-hidden">
+          {/* Top amber accent line */}
+          <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600"></div>
+
+          {/* Header */}
+          <div className="text-center space-y-3 pt-2">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30 text-amber-400 flex items-center justify-center mx-auto shadow-inner">
+              <Lock className="w-8 h-8 stroke-[2.2]" />
+            </div>
+
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black uppercase tracking-wider bg-red-950/80 text-red-400 border border-red-800/40 mb-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span>
+                <span>Restricted Operations</span>
+              </div>
+              <h2 className="text-xl font-black text-white tracking-tight">
+                Master Admin Command Gate
+              </h2>
+              <p className="text-xs text-slate-400 mt-1 font-mono">
+                IIT BHU &amp; ScamShield Central Operations
+              </p>
+            </div>
+          </div>
+
+          {/* Statutory Security Warning */}
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200/90 space-y-1">
+            <p className="font-bold flex items-center gap-1.5 text-amber-400">
+              <ShieldAlert className="w-4 h-4 shrink-0" />
+              <span>Authorized Personnel Only</span>
+            </p>
+            <p className="text-slate-300 leading-relaxed">
+              This terminal provides administrative control over the National Citizens Directory, UTR Verification Ledger, and Beneficiary Routing. Unauthorized access attempts are cryptographically logged.
+            </p>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleUnlockAdmin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider font-mono">
+                Master Security Passkey / PIN
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <input
+                  type={showPasskey ? 'text' : 'password'}
+                  value={passkeyInput}
+                  onChange={(e) => setPasskeyInput(e.target.value)}
+                  placeholder="Enter Master Security Passkey..."
+                  autoFocus
+                  required
+                  className="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-950 border border-slate-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 text-white text-sm font-mono placeholder:text-slate-600 outline-none transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPasskey(!showPasskey)}
+                  className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-200 cursor-pointer"
+                  aria-label="Toggle password visibility"
+                >
+                  {showPasskey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {passkeyError && (
+              <div className="p-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-xs flex items-center gap-2 animate-in fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{passkeyError}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isVerifying}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg hover:shadow-amber-500/20 cursor-pointer active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isVerifying ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  <span>Verifying Credentials...</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>Unlock Admin Console</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Footer Back Link */}
+          <div className="pt-2 text-center border-t border-slate-800">
+            <Link
+              href="/"
+              className="text-xs text-slate-400 hover:text-white font-mono inline-flex items-center gap-1.5 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Return to Public Citizen Portal</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col">
       {/* Top Admin Header Bar */}
@@ -184,7 +363,7 @@ export default function AdminPage() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-mono">
-                Central Citizen Registry & UTR Payment Verification Command
+                Central Citizen Registry &amp; UTR Payment Verification Command
               </p>
             </div>
           </div>
@@ -202,22 +381,24 @@ export default function AdminPage() {
             </span>
           </div>
 
-          {!user || user.role !== 'admin' ? (
-            <button
-              onClick={loginAsAdmin}
-              className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition-colors shadow-xs cursor-pointer"
-            >
-              Log in as Master Admin
-            </button>
-          ) : (
-            <Link
-              href="/"
-              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors border border-slate-700 flex items-center gap-1.5"
-            >
-              <span>Main Console</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </Link>
-          )}
+          <Link
+            href="/"
+            className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition-colors border border-slate-700 flex items-center gap-1.5"
+            title="Open Citizen Portal in new window"
+            target="_blank"
+          >
+            <span>Citizen Portal</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </Link>
+
+          <button
+            onClick={handleLockAdmin}
+            className="px-3 py-1.5 rounded-xl bg-red-950/80 hover:bg-red-900 text-red-300 hover:text-white font-bold text-xs transition-colors border border-red-800/50 flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Lock Console and Terminate Admin Session"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Lock &amp; Sign Out</span>
+          </button>
         </div>
       </header>
 
