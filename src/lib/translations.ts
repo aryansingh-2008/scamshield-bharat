@@ -1,8 +1,8 @@
 export const TRANSLATIONS = {
   en: {
-    brandName: 'ScamShield Bharat',
+    brandName: 'Scam Shield Bharat',
     brandTagline: 'Evidence-First Financial Verification Assistant',
-    headerTitle: 'ScamShield Bharat',
+    headerTitle: 'Scam Shield Bharat',
     navHome: 'Home',
     navCheck: 'Check Message',
     navDemo: 'Live Demo',
@@ -67,7 +67,7 @@ export const TRANSLATIONS = {
       'ScamShield Bharat is an independent civic education and heuristic safety verification tool. It is NOT an investment advisor (RIA), research analyst (RA), broker, or government regulatory body under SEBI or RBI. All financial transactions must be independently verified on official regulatory portals (SEBI SCORES / RBI Sachet / 1930).',
     demoTitle: 'Choose a Deterministic Demo Scenario',
     demoDesc: 'Explore how ScamShield analyzes real-world financial threats in 3 seconds.',
-    footerCopyright: '© 2026 ScamShield Bharat. Built for Indian Investor Protection & Financial Cyber Resilience.',
+    footerCopyright: '© 2026 Scam Shield Bharat. Protecting Indian Citizens & Retail Investors against Cyber Fraud.',
     archTitle: 'System Architecture & Data Flow',
     secTitle: 'Security & Privacy Blueprint',
     evidenceTrailTitle: 'Evidence Trail: Claim Cross-Examination',
@@ -83,9 +83,9 @@ export const TRANSLATIONS = {
     keyTakeaway3: 'Do not click on links, deposit funds, or share personal credentials or OTPs.',
   },
   hi: {
-    brandName: 'स्कैमशील्ड भारत',
+    brandName: 'स्कैम शील्ड भारत',
     brandTagline: 'प्रमाण-आधारित वित्तीय धोखाधड़ी जांच सहायक',
-    headerTitle: 'स्कैमशील्ड भारत',
+    headerTitle: 'स्कैम शील्ड भारत',
     navHome: 'होम',
     navCheck: 'संदेश जांचें',
     navDemo: 'लाइव डेमो',

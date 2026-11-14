@@ -174,15 +174,14 @@ export default function Header({
           )}
 
           {/* About */}
-          {onOpenAbout && (
-            <button
-              onClick={onOpenAbout}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
-            >
-              <Info className="w-3.5 h-3.5 text-slate-400" />
-              <span>{isHindi ? 'हमारे बारे में' : 'About'}</span>
-            </button>
-          )}
+          <Link
+            href="/about"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+            title={isHindi ? 'स्कैम शील्ड भारत के बारे में' : 'About Scam Shield Bharat'}
+          >
+            <Info className="w-3.5 h-3.5 text-slate-400" />
+            <span>{isHindi ? 'हमारे बारे में' : 'About'}</span>
+          </Link>
 
           {/* Profile Navigation Button */}
           {onOpenProfile && (
@@ -521,18 +520,14 @@ export default function Header({
             </Link>
           )}
 
-          {onOpenAbout && (
-            <button
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                onOpenAbout();
-              }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg text-left transition-colors"
-            >
-              <Info className="w-4 h-4 text-slate-400" />
-              <span>{isHindi ? 'हमारे बारे में' : 'About ScamShield Bharat'}</span>
-            </button>
-          )}
+          <Link
+            href="/about"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg text-left transition-colors"
+          >
+            <Info className="w-4 h-4 text-slate-400" />
+            <span>{isHindi ? 'स्कैम शील्ड भारत के बारे में' : 'About Scam Shield Bharat'}</span>
+          </Link>
 
           {onOpenTerms && (
             <button

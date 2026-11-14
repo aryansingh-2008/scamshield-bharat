@@ -58,23 +58,23 @@ export default function OfficialSlideHero({ lang }: OfficialSlideHeroProps) {
           </div>
 
           {/* Main Headline */}
-          <h1 className="text-3xl sm:text-4xl lg:text-[45px] font-black text-[#0A1C2A] tracking-tight leading-[1.12] font-sans">
+          <h1 className="text-3xl sm:text-4xl lg:text-[42px] font-black text-[#0A1C2A] tracking-tight leading-[1.15] font-sans">
             {isHindi ? (
               <>
-                <span className="text-[#004A87]">एआई-संचालित</span> धोखाधड़ी विश्लेषण
+                <span className="text-[#004A87]">स्कैम शील्ड भारत:</span> एआई-संचालित धोखाधड़ी विश्लेषण
               </>
             ) : (
               <>
-                AI-Powered <span className="text-[#004A87]">Scam Analysis</span>
+                <span className="text-[#004A87]">Scam Shield Bharat:</span> AI-Powered Scam Analysis
               </>
             )}
           </h1>
 
           {/* Subtitle */}
-          <p className="text-xs sm:text-sm lg:text-[15px] text-slate-600 font-sans leading-relaxed max-w-xl">
+          <p className="text-xs sm:text-sm lg:text-[14.5px] text-slate-600 font-sans leading-relaxed max-w-xl">
             {isHindi
-              ? 'धोखाधड़ी को तुरंत पहचानें, आधिकारिक विनियामक स्रोतों से पुष्टि करें, सरल भाषा में समझें और पैसे बचाने के सुरक्षित कदम उठाएं।'
-              : 'Detect scams early, verify with official sources, get clear explanations in simple language, and take safe next steps.'}
+              ? 'स्कैम शील्ड भारत (ScamShield Bharat) — भारतीय नागरिकों व खुदरा निवेशकों के लिए प्रमाण-आधारित सुरक्षा सहायक। संदिग्ध निवेश संदेशों, टेलीग्राम चैनलों, फर्जी लिंक और ऑनलाइन धोखाधड़ी की आधिकारिक विनियामक स्रोतों (SEBI / RBI Sachet) से तुरंत पुष्टि करें।'
+              : 'Scam Shield Bharat (also known as ScamShield Bharat / ScamShield) is India’s evidence-first financial cyber safety assistant. Safely verify suspicious messages, phishing URLs, fake investment schemes, and fraudulent payment links against official regulatory records.'}
           </p>
 
           {/* 4 HORIZONTAL FEATURE CARDS ROW (Exact 4-Column Grid) */}

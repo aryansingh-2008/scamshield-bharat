@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { ShieldCheck, PhoneCall, ExternalLink, AlertCircle, Scale, Mail } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 import { OFFICIAL_SOURCES, CYBERCRIME_HELPLINE } from '@/lib/official-sources';
@@ -26,6 +27,15 @@ export default function Footer({ lang, onOpenTerms }: FooterProps) {
             <p className="text-xs text-console-400 leading-relaxed">
               {t.brandTagline}
             </p>
+            <div className="pt-1">
+              <Link
+                href="/about"
+                className="text-[#004A87] hover:underline font-semibold text-[11.5px] inline-flex items-center gap-1"
+              >
+                <span>{lang === 'hi' ? 'स्कैम शील्ड भारत के बारे में' : 'About Scam Shield Bharat'}</span>
+                <span aria-hidden="true">&rarr;</span>
+              </Link>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -172,6 +182,12 @@ export default function Footer({ lang, onOpenTerms }: FooterProps) {
           </div>
 
           <div className="flex items-center gap-4">
+            <Link
+              href="/about"
+              className="text-slate-600 hover:text-[#004A87] font-semibold hover:underline"
+            >
+              {lang === 'hi' ? 'परिचय' : 'About'}
+            </Link>
             {onOpenTerms && (
               <button
                 onClick={onOpenTerms}
