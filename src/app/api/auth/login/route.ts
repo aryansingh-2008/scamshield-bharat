@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   signSessionToken,
   SESSION_COOKIE_NAME,
+  isDistributedStoreConfigured,
 } from '@/lib/server-auth';
 import {
   MASTER_ADMIN_USER,
@@ -73,6 +74,16 @@ export async function POST(req: NextRequest) {
       cleanIdent === 'ssb-president-0001';
 
     if (isPresident) {
+      if (process.env.REQUIRE_DISTRIBUTED_AUTH?.trim().toLowerCase() === 'true' && !isDistributedStoreConfigured()) {
+        return NextResponse.json(
+          {
+            error: 'Security Policy Violation: Privileged administrative access requires an active distributed datastore. Access is failed-closed.',
+            code: 'DISTRIBUTED_STORE_REQUIRED',
+          },
+          { status: 503 }
+        );
+      }
+
       const isPassValid = cleanPass === PRESIDENT_PASSKEY || cleanPass === PRESIDENT_PIN;
       if (!isPassValid) {
         return NextResponse.json(
@@ -116,6 +127,16 @@ export async function POST(req: NextRequest) {
       cleanIdent === 'ssb-admin-0001';
 
     if (isMasterAdmin) {
+      if (process.env.REQUIRE_DISTRIBUTED_AUTH?.trim().toLowerCase() === 'true' && !isDistributedStoreConfigured()) {
+        return NextResponse.json(
+          {
+            error: 'Security Policy Violation: Privileged administrative access requires an active distributed datastore. Access is failed-closed.',
+            code: 'DISTRIBUTED_STORE_REQUIRED',
+          },
+          { status: 503 }
+        );
+      }
+
       const isPassValid = cleanPass === MASTER_ADMIN_PASSKEY || cleanPass === MASTER_ADMIN_PIN;
       if (!isPassValid) {
         return NextResponse.json(

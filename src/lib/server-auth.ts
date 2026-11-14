@@ -319,7 +319,7 @@ export async function consumePasskeyChallenge(
   }
 
   // Fail closed if privileged authentication explicitly requires distributed lock in configuration
-  if (isPrivileged && process.env.REQUIRE_DISTRIBUTED_AUTH === 'true') {
+  if (isPrivileged && process.env.REQUIRE_DISTRIBUTED_AUTH?.trim().toLowerCase() === 'true') {
     return {
       success: false,
       error: 'DISTRIBUTED_STORE_REQUIRED_FOR_PRIVILEGED_AUTH',
@@ -332,11 +332,20 @@ export async function consumePasskeyChallenge(
 }
 
 /**
+ * Checks whether distributed datastore credentials (Upstash Redis or Vercel KV) are present.
+ */
+export function isDistributedStoreConfigured(): boolean {
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  return Boolean(url && token);
+}
+
+/**
  * Distributed KV / Upstash Redis Store Client (REST-based)
  * Safely checks if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN exist.
- * If configured, performs atomic INCR and GET across all serverless instances.
+ * Uses an atomic Lua script to execute INCR and EXPIRE in a single Redis transaction.
  */
-export async function incrementDistributedCounter(key: string, ttlSeconds = 86400): Promise<number | null> {
+export async function incrementDistributedCounter(key: string, ttlSeconds = 86400 * 30): Promise<number | null> {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
@@ -348,6 +357,9 @@ export async function incrementDistributedCounter(key: string, ttlSeconds = 8640
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 1500);
 
+    // Atomic Lua script: INCR and EXPIRE executed in a single atomic transaction
+    const luaScript = "local c = redis.call('INCR', KEYS[1]); if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end; return c;";
+
     const res = await fetch(`${url}/pipeline`, {
       method: 'POST',
       headers: {
@@ -355,8 +367,7 @@ export async function incrementDistributedCounter(key: string, ttlSeconds = 8640
         'Content-Type': 'application/json',
       },
       body: JSON.stringify([
-        ['INCR', key],
-        ['EXPIRE', key, ttlSeconds],
+        ['EVAL', luaScript, 1, key, String(ttlSeconds)],
       ]),
       signal: controller.signal,
     });
@@ -370,7 +381,7 @@ export async function incrementDistributedCounter(key: string, ttlSeconds = 8640
       }
     }
   } catch (err) {
-    // Graceful fallback if Redis is unreachable
+    // Graceful fallback if Redis is unreachable or times out
   }
   return null;
 }

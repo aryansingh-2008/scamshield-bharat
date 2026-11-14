@@ -36,14 +36,17 @@ export async function POST(req: NextRequest) {
     // Atomic Server-Side Challenge Consumption (Guaranteed Single-Use)
     const consumption = await consumePasskeyChallenge(challenge, isPrivileged);
     if (!consumption.success) {
+      const isDistributedRequired = consumption.error === 'DISTRIBUTED_STORE_REQUIRED_FOR_PRIVILEGED_AUTH';
       return NextResponse.json(
         {
-          error: consumption.error === 'CHALLENGE_ALREADY_CONSUMED'
+          error: isDistributedRequired
+            ? 'Security Policy Violation: Privileged administrative passkey access requires an active distributed datastore. Access is failed-closed.'
+            : consumption.error === 'CHALLENGE_ALREADY_CONSUMED'
             ? 'Security challenge has already been consumed. Replay attacks are rejected.'
             : 'Security challenge validation failed. Please request a new passkey prompt.',
           code: consumption.error,
         },
-        { status: 400 }
+        { status: isDistributedRequired ? 503 : 400 }
       );
     }
 
