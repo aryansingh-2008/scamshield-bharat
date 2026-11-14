@@ -11,8 +11,8 @@ import {
   PRESIDENT_PASSKEY,
   PRESIDENT_PIN,
   DEMO_USERS,
+  generateCitizenId,
 } from '@/lib/auth-constants';
-import { generateCitizenId } from '@/lib/user-registry';
 
 export async function POST(req: NextRequest) {
   try {
@@ -189,9 +189,9 @@ export async function POST(req: NextRequest) {
     });
 
     return response;
-  } catch (error) {
+  } catch (error: any) {
     return NextResponse.json(
-      { error: 'Authentication failed due to an unexpected error.' },
+      { error: 'Authentication failed due to an unexpected error.', details: error?.message || String(error) },
       { status: 500 }
     );
   }

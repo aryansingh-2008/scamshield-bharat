@@ -82,3 +82,10 @@ export const DEMO_USERS = {
     verified: true,
   },
 };
+
+export function generateCitizenId(): string {
+  const year = new Date().getFullYear();
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+  const suffix = Math.floor(10 + Math.random() * 90);
+  return `SSB-${year}-${randomPart}${suffix}`;
+}

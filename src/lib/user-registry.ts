@@ -38,13 +38,9 @@ const STORAGE_KEY_CITIZENS = 'scamshield_citizens_registry_v1';
 const STORAGE_KEY_UTR_TXNS = 'scamshield_utr_transactions_v1';
 const STORAGE_KEY_MERCHANT_UPI = 'scamshield_merchant_upi';
 
-// Helper to generate official Indian Citizen Cyber Safety ID
-export function generateCitizenId(): string {
-  const year = new Date().getFullYear();
-  const randomPart = Math.floor(1000 + Math.random() * 9000);
-  const suffix = Math.floor(10 + Math.random() * 90);
-  return `SSB-${year}-${randomPart}${suffix}`;
-}
+// Import & re-export generateCitizenId from pure auth-constants
+import { generateCitizenId } from './auth-constants';
+export { generateCitizenId };
 
 // Initial pre-seeded citizen accounts
 const INITIAL_CITIZENS: RegisteredCitizen[] = [
