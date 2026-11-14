@@ -258,37 +258,76 @@ export default function AdminPage() {
     showNotification(`✅ सदस्य '${created.name}' (${created.uid}) को सफलतापूर्वक नियुक्त किया गया!`);
   };
 
-  const handleAppointPostSubmit = (e: React.FormEvent) => {
+  const handleAppointPostSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCitizenForEdit) return;
-    const res = adminAppointPost(selectedCitizenForEdit.uid, {
-      name: editName,
-      role: editRole,
-      designation: editDesignation,
-      organization: editOrg,
-      credits: editCredits,
-      isUnlimited: editUnlimited,
-    });
-    if (!res.success) {
-      showNotification(`⚠️ ${res.message}`);
-      return;
+
+    try {
+      const serverRes = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'APPOINT_POST',
+          payload: { uid: selectedCitizenForEdit.uid, role: editRole },
+        }),
+      });
+      const data = await serverRes.json().catch(() => ({}));
+      if (!serverRes.ok) {
+        showNotification(`⚠️ पद परिवर्तन अस्वीकृत: ${data.error || 'Unauthorized'}`);
+        return;
+      }
+
+      const res = adminAppointPost(selectedCitizenForEdit.uid, {
+        name: editName,
+        role: editRole,
+        designation: editDesignation,
+        organization: editOrg,
+        credits: editCredits,
+        isUnlimited: editUnlimited,
+      });
+      if (!res.success) {
+        showNotification(`⚠️ ${res.message}`);
+        return;
+      }
+      setIsEditModalOpen(false);
+      setSelectedCitizenForEdit(null);
+      reloadData();
+      showNotification(`✅ ${res.message}`);
+    } catch {
+      showNotification('⚠️ सर्वर संचार त्रुटि (Network Error)।');
     }
-    setIsEditModalOpen(false);
-    setSelectedCitizenForEdit(null);
-    reloadData();
-    showNotification(`✅ ${res.message}`);
   };
 
-  const handleDeleteCitizen = (uid: string) => {
-    const res = adminDeleteCitizen(uid);
-    if (!res.success) {
-      showNotification(`⚠️ ${res.message}`);
+  const handleDeleteCitizen = async (uid: string) => {
+    try {
+      const serverRes = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'DELETE_CITIZEN',
+          payload: { uid },
+        }),
+      });
+      const data = await serverRes.json().catch(() => ({}));
+      if (!serverRes.ok) {
+        showNotification(`⚠️ खाता हटाना अस्वीकृत: ${data.error || 'Unauthorized'}`);
+        setDeleteConfirmCitizen(null);
+        return;
+      }
+
+      const res = adminDeleteCitizen(uid);
+      if (!res.success) {
+        showNotification(`⚠️ ${res.message}`);
+        setDeleteConfirmCitizen(null);
+        return;
+      }
       setDeleteConfirmCitizen(null);
-      return;
+      reloadData();
+      showNotification(`✅ ${res.message}`);
+    } catch {
+      showNotification('⚠️ सर्वर संचार त्रुटि (Network Error)।');
+      setDeleteConfirmCitizen(null);
     }
-    setDeleteConfirmCitizen(null);
-    reloadData();
-    showNotification(`✅ ${res.message}`);
   };
 
   // Admin Actions on UTRs
@@ -306,15 +345,28 @@ export default function AdminPage() {
     showNotification(`UTR ${utr} marked as REJECTED.`);
   };
 
-  const handleSaveUpi = () => {
-    // Security Gate: Only Chief Admin / Authenticated Admin can change the beneficiary UPI
-    if (user?.role !== 'admin') {
-      showNotification('सुरक्षा नियम: केवल अधिकृत मुख्य व्यवस्थापक (Chief Admin) ही UPI VPA बदल सकते हैं।');
+  const handleSaveUpi = async () => {
+    const clean = merchantUpi.trim();
+    if (!clean || !clean.includes('@') || clean.length <= 5) {
+      showNotification('⚠️ कृपया वैध UPI VPA (उदा. scamshieldbharat@upi) दर्ज करें।');
       return;
     }
 
-    const clean = merchantUpi.trim();
-    if (clean && clean.includes('@') && clean.length > 5) {
+    try {
+      const serverRes = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'UPDATE_BENEFICIARY_UPI',
+          payload: { upi: clean },
+        }),
+      });
+      const data = await serverRes.json().catch(() => ({}));
+      if (!serverRes.ok) {
+        showNotification(`⚠️ UPI परिवर्तन अस्वीकृत: ${data.error || 'Unauthorized'}`);
+        return;
+      }
+
       if (typeof window !== 'undefined') {
         localStorage.setItem('scamshield_merchant_upi', clean);
         window.dispatchEvent(new CustomEvent('scamshield_merchant_upi_updated', { detail: clean }));
@@ -322,8 +374,8 @@ export default function AdminPage() {
       setUpiSavedNotice(true);
       setTimeout(() => setUpiSavedNotice(false), 2500);
       showNotification(`✅ Official Beneficiary UPI updated to '${clean}'! Live QR codes and payments are now routing to this account.`);
-    } else {
-      showNotification('⚠️ कृपया वैध UPI VPA (उदा. scamshieldbharat@upi) दर्ज करें।');
+    } catch {
+      showNotification('⚠️ सर्वर संचार त्रुटि (Network Error)।');
     }
   };
 

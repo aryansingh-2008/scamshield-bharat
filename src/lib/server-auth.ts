@@ -9,7 +9,7 @@ export interface ServerSessionPayload {
   designation?: string;
   organization?: string;
   verified: boolean;
-  jti?: string; // Unique JWT Token ID
+  jti?: string; // Unique 16-byte Cryptographic JWT Token ID
   iat: number; // Issued at (seconds)
   exp: number; // Expiry (seconds)
 }
@@ -37,22 +37,22 @@ export const ADMIN_SESSION_TTL_SECONDS = 2 * 60 * 60; // 2 hours
 export const CITIZEN_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
 // Identity-Aware & Origin-Aware Throttling Limits
-export const IP_FAILED_ATTEMPTS_LIMIT = 5;
-export const ACCOUNT_IP_FAILED_ATTEMPTS_LIMIT = 5;
-export const GLOBAL_ACCOUNT_FAILED_ATTEMPTS_LIMIT = 15;
-export const PRIVILEGED_LOCKOUT_SECONDS = 15 * 60; // 15 minutes lockout
+export const ORIGIN_FAILED_ATTEMPTS_LIMIT = 5; // A single origin IP is locked after 5 failed attempts
+export const GLOBAL_DISTINCT_ORIGINS_LIMIT = 5; // Global account lock requires failed attempts from 5 distinct origins
+export const PRIVILEGED_LOCKOUT_SECONDS = 15 * 60; // 15 minutes lockout duration
 
 // In-memory revocation and brute-force tracking caches (for instance-level fallback)
 const localRevokedTokens = new Map<string, number>();
 const localIpFailures = new Map<string, { count: number; lockedUntil: number; firstSeen: number }>();
 const localAccountIpFailures = new Map<string, { count: number; lockedUntil: number; firstSeen: number }>();
-const localGlobalAccountFailures = new Map<string, { count: number; lockedUntil: number; firstSeen: number }>();
+const localGlobalAccountOrigins = new Map<string, { origins: Set<string>; lockedUntil: number; firstSeen: number }>();
+const localSpentChallenges = new Map<string, number>();
 
 export function clearLocalAuthCaches(): void {
   localRevokedTokens.clear();
   localIpFailures.clear();
   localAccountIpFailures.clear();
-  localGlobalAccountFailures.clear();
+  localGlobalAccountOrigins.clear();
   localSpentChallenges.clear();
 }
 
@@ -71,9 +71,14 @@ function cleanupLocalCaches() {
       localAccountIpFailures.delete(key);
     }
   }
-  for (const [key, state] of localGlobalAccountFailures.entries()) {
+  for (const [key, state] of localGlobalAccountOrigins.entries()) {
     if (now > state.lockedUntil && now > state.firstSeen + PRIVILEGED_LOCKOUT_SECONDS * 1000) {
-      localGlobalAccountFailures.delete(key);
+      localGlobalAccountOrigins.delete(key);
+    }
+  }
+  for (const [chal, exp] of localSpentChallenges.entries()) {
+    if (now > exp) {
+      localSpentChallenges.delete(chal);
     }
   }
 }
@@ -118,6 +123,7 @@ export function hashSessionToken(token: string): string {
 
 /**
  * Sign a payload using HMAC-SHA256.
+ * Injects 16 cryptographically random bytes (128-bit entropy) for unique token identity (jti).
  * Enforces a strict 2-hour TTL for administrative accounts, and 7 days for general citizen accounts.
  */
 export function signSessionToken(
@@ -134,7 +140,7 @@ export function signSessionToken(
 
   const payload: ServerSessionPayload = {
     ...user,
-    jti: crypto.randomBytes(8).toString('hex'),
+    jti: crypto.randomBytes(16).toString('hex'),
     iat: now,
     exp: now + effectiveTtl,
   };
@@ -388,7 +394,7 @@ export async function checkAccountLockout(
     return { locked: true, retryAfterSeconds: remaining, scope: 'origin' };
   }
 
-  const localGlobalLock = cleanIdent ? localGlobalAccountFailures.get(cleanIdent) : null;
+  const localGlobalLock = cleanIdent ? localGlobalAccountOrigins.get(cleanIdent) : null;
   if (localGlobalLock && now < localGlobalLock.lockedUntil) {
     const remaining = Math.ceil((localGlobalLock.lockedUntil - now) / 1000);
     return { locked: true, retryAfterSeconds: remaining, scope: 'account' };
@@ -460,9 +466,10 @@ export async function checkAccountLockout(
  *
  * Attack-Resistance Design:
  * 1. Attacker attempting brute-force from IP X locks out IP X after 5 failures.
- * 2. Legitimate user logging in from distinct IP Y is NOT locked out by IP X's failures.
- * 3. Global account lock requires 15 distributed failures across multiple IPs.
- * 4. All counters updated atomically in Upstash Redis via a single Lua script.
+ * 2. Once an IP is locked, further attempts from that IP are immediately dropped and CANNOT increment global counters.
+ * 3. Legitimate user logging in from distinct IP Y is NOT locked out by IP X's failures.
+ * 4. Global account lock requires distributed failures across 5 distinct origins (Sets of hashed IPs).
+ * 5. All counters updated atomically in Upstash Redis via a single Lua script.
  */
 export async function recordFailedAuthAttempt(
   identifier: string,
@@ -474,10 +481,26 @@ export async function recordFailedAuthAttempt(
 
   cleanupLocalCaches();
 
+  // Check if IP or Account+IP is already locked in local memory: if so, do NOT increment any counters
+  const existingIpLock = localIpFailures.get(hashedIp);
+  if (existingIpLock && now < existingIpLock.lockedUntil) {
+    const remaining = Math.ceil((existingIpLock.lockedUntil - now) / 1000);
+    return { locked: true, attempts: ORIGIN_FAILED_ATTEMPTS_LIMIT, retryAfterSeconds: remaining, scope: 'origin' };
+  }
+
+  if (cleanIdent) {
+    const acctIpKey = `${cleanIdent}:${hashedIp}`;
+    const existingAcctIpLock = localAccountIpFailures.get(acctIpKey);
+    if (existingAcctIpLock && now < existingAcctIpLock.lockedUntil) {
+      const remaining = Math.ceil((existingAcctIpLock.lockedUntil - now) / 1000);
+      return { locked: true, attempts: ORIGIN_FAILED_ATTEMPTS_LIMIT, retryAfterSeconds: remaining, scope: 'origin' };
+    }
+  }
+
   // Update local memory state
   const ipState = localIpFailures.get(hashedIp) || { count: 0, lockedUntil: 0, firstSeen: now };
   const newIpCount = ipState.count + 1;
-  const isIpLocked = newIpCount >= IP_FAILED_ATTEMPTS_LIMIT;
+  const isIpLocked = newIpCount >= ORIGIN_FAILED_ATTEMPTS_LIMIT;
   localIpFailures.set(hashedIp, {
     count: newIpCount,
     lockedUntil: isIpLocked ? now + PRIVILEGED_LOCKOUT_SECONDS * 1000 : 0,
@@ -489,19 +512,41 @@ export async function recordFailedAuthAttempt(
     const acctIpKey = `${cleanIdent}:${hashedIp}`;
     const acctIpState = localAccountIpFailures.get(acctIpKey) || { count: 0, lockedUntil: 0, firstSeen: now };
     newAcctIpCount = acctIpState.count + 1;
-    const isAcctIpLocked = newAcctIpCount >= ACCOUNT_IP_FAILED_ATTEMPTS_LIMIT;
+    const isAcctIpLocked = newAcctIpCount >= ORIGIN_FAILED_ATTEMPTS_LIMIT;
     localAccountIpFailures.set(acctIpKey, {
       count: newAcctIpCount,
       lockedUntil: isAcctIpLocked ? now + PRIVILEGED_LOCKOUT_SECONDS * 1000 : 0,
       firstSeen: acctIpState.firstSeen,
     });
+
+    // Add to distinct origins set for account
+    const globalState = localGlobalAccountOrigins.get(cleanIdent) || {
+      origins: new Set<string>(),
+      lockedUntil: 0,
+      firstSeen: now,
+    };
+    globalState.origins.add(hashedIp);
+    const isGlobalLocked = globalState.origins.size >= GLOBAL_DISTINCT_ORIGINS_LIMIT;
+    if (isGlobalLocked) {
+      globalState.lockedUntil = now + PRIVILEGED_LOCKOUT_SECONDS * 1000;
+    }
+    localGlobalAccountOrigins.set(cleanIdent, globalState);
+
+    if (isGlobalLocked) {
+      return {
+        locked: true,
+        attempts: globalState.origins.size,
+        retryAfterSeconds: PRIVILEGED_LOCKOUT_SECONDS,
+        scope: 'account',
+      };
+    }
   }
 
   const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
   if (!rawUrl || !redisToken) {
-    const locked = isIpLocked || newAcctIpCount >= ACCOUNT_IP_FAILED_ATTEMPTS_LIMIT;
+    const locked = isIpLocked || newAcctIpCount >= ORIGIN_FAILED_ATTEMPTS_LIMIT;
     return {
       locked,
       attempts: Math.max(newIpCount, newAcctIpCount),
@@ -520,28 +565,48 @@ export async function recordFailedAuthAttempt(
     const ipLockKey = `scamshield:auth:lock:ip:${hashedIp}`;
     const acctIpFailKey = `scamshield:auth:fail:acct_ip:${cleanIdent}:${hashedIp}`;
     const acctIpLockKey = `scamshield:auth:lock:acct_ip:${cleanIdent}:${hashedIp}`;
-    const globalFailKey = `scamshield:auth:fail:global:${cleanIdent}`;
+    const globalOriginsKey = `scamshield:auth:origins:${cleanIdent}`;
     const globalLockKey = `scamshield:auth:lock:global:${cleanIdent}`;
 
-    // Atomic Lua Script: Evaluates IP, Account+IP, and Global counters simultaneously
+    // Atomic Lua Script:
+    // 1. Check if IP or Account+IP is already locked; if so, exit without incrementing global origins!
+    // 2. Increment Origin fail counter; lock if >= originThresh
+    // 3. Increment Account+IP fail counter; lock if >= originThresh
+    // 4. Add distinct origin to Account Origins Set
+    // 5. Global lock ONLY if distinct origins >= distinctOriginThresh
     const luaScript = `
       local ttl = tonumber(ARGV[1])
-      local ipThresh = tonumber(ARGV[2])
-      local globalThresh = tonumber(ARGV[3])
+      local originThresh = tonumber(ARGV[2])
+      local distinctOriginThresh = tonumber(ARGV[3])
+      local clientHashedIp = ARGV[4]
+
+      if redis.call('EXISTS', KEYS[2]) == 1 or redis.call('EXISTS', KEYS[4]) == 1 then
+        local remTtl = redis.call('TTL', KEYS[2])
+        if remTtl <= 0 then remTtl = redis.call('TTL', KEYS[4]) end
+        return { originThresh, originThresh, 0, 1, remTtl }
+      end
 
       local ipC = redis.call('INCR', KEYS[1])
       if ipC == 1 then redis.call('EXPIRE', KEYS[1], ttl) end
-      if ipC >= ipThresh then redis.call('SET', KEYS[2], 'locked', 'EX', ttl) end
+      if ipC >= originThresh then redis.call('SET', KEYS[2], 'locked', 'EX', ttl) end
 
       local acctIpC = redis.call('INCR', KEYS[3])
       if acctIpC == 1 then redis.call('EXPIRE', KEYS[3], ttl) end
-      if acctIpC >= ipThresh then redis.call('SET', KEYS[4], 'locked', 'EX', ttl) end
+      if acctIpC >= originThresh then redis.call('SET', KEYS[4], 'locked', 'EX', ttl) end
 
-      local globalC = redis.call('INCR', KEYS[5])
-      if globalC == 1 then redis.call('EXPIRE', KEYS[5], ttl) end
-      if globalC >= globalThresh then redis.call('SET', KEYS[6], 'locked', 'EX', ttl) end
+      redis.call('SADD', KEYS[5], clientHashedIp)
+      if redis.call('TTL', KEYS[5]) <= 0 then redis.call('EXPIRE', KEYS[5], ttl) end
+      local distinctCount = redis.call('SCARD', KEYS[5])
 
-      return { ipC, acctIpC, globalC }
+      if distinctCount >= distinctOriginThresh then
+        redis.call('SET', KEYS[6], 'locked', 'EX', ttl)
+      end
+
+      local isOriginLocked = (ipC >= originThresh or acctIpC >= originThresh) and 1 or 0
+      local isGlobalLocked = (distinctCount >= distinctOriginThresh) and 1 or 0
+      local isLocked = (isOriginLocked == 1 or isGlobalLocked == 1) and 1 or 0
+
+      return { ipC, acctIpC, distinctCount, isLocked, ttl }
     `;
 
     const res = await fetch(`${url}/pipeline`, {
@@ -559,11 +624,12 @@ export async function recordFailedAuthAttempt(
           ipLockKey,
           acctIpFailKey,
           acctIpLockKey,
-          globalFailKey,
+          globalOriginsKey,
           globalLockKey,
           String(PRIVILEGED_LOCKOUT_SECONDS),
-          String(ACCOUNT_IP_FAILED_ATTEMPTS_LIMIT),
-          String(GLOBAL_ACCOUNT_FAILED_ATTEMPTS_LIMIT),
+          String(ORIGIN_FAILED_ATTEMPTS_LIMIT),
+          String(GLOBAL_DISTINCT_ORIGINS_LIMIT),
+          hashedIp,
         ],
       ]),
       signal: controller.signal,
@@ -572,21 +638,21 @@ export async function recordFailedAuthAttempt(
 
     if (res.ok) {
       const data = await res.json();
-      const counts = data?.[0]?.result;
-      if (Array.isArray(counts) && counts.length >= 3) {
-        const ipC = Number(counts[0]);
-        const acctIpC = Number(counts[1]);
-        const globalC = Number(counts[2]);
+      const results = data?.[0]?.result;
+      if (Array.isArray(results) && results.length >= 4) {
+        const ipC = Number(results[0]);
+        const acctIpC = Number(results[1]);
+        const distinctOrigins = Number(results[2]);
+        const isLocked = Number(results[3]) === 1;
+        const remTtl = Number(results[4]) || PRIVILEGED_LOCKOUT_SECONDS;
 
-        const originLocked = ipC >= IP_FAILED_ATTEMPTS_LIMIT || acctIpC >= ACCOUNT_IP_FAILED_ATTEMPTS_LIMIT;
-        const globalLocked = globalC >= GLOBAL_ACCOUNT_FAILED_ATTEMPTS_LIMIT;
-        const locked = originLocked || globalLocked;
+        const isGlobal = distinctOrigins >= GLOBAL_DISTINCT_ORIGINS_LIMIT;
 
         return {
-          locked,
+          locked: isLocked,
           attempts: Math.max(ipC, acctIpC),
-          retryAfterSeconds: locked ? PRIVILEGED_LOCKOUT_SECONDS : 0,
-          scope: globalLocked ? 'account' : originLocked ? 'origin' : undefined,
+          retryAfterSeconds: isLocked ? remTtl : 0,
+          scope: isGlobal ? 'account' : isLocked ? 'origin' : undefined,
         };
       }
     }
@@ -594,7 +660,7 @@ export async function recordFailedAuthAttempt(
     // Fall back to local ledger
   }
 
-  const locked = isIpLocked || newAcctIpCount >= ACCOUNT_IP_FAILED_ATTEMPTS_LIMIT;
+  const locked = isIpLocked || newAcctIpCount >= ORIGIN_FAILED_ATTEMPTS_LIMIT;
   return {
     locked,
     attempts: Math.max(newIpCount, newAcctIpCount),
@@ -618,7 +684,7 @@ export async function clearFailedAuthAttempts(
   localIpFailures.delete(hashedIp);
   if (cleanIdent) {
     localAccountIpFailures.delete(`${cleanIdent}:${hashedIp}`);
-    localGlobalAccountFailures.delete(cleanIdent);
+    localGlobalAccountOrigins.delete(cleanIdent);
   }
 
   const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
@@ -640,7 +706,7 @@ export async function clearFailedAuthAttempts(
       commands.push(
         ['DEL', `scamshield:auth:fail:acct_ip:${cleanIdent}:${hashedIp}`],
         ['DEL', `scamshield:auth:lock:acct_ip:${cleanIdent}:${hashedIp}`],
-        ['DEL', `scamshield:auth:fail:global:${cleanIdent}`],
+        ['DEL', `scamshield:auth:origins:${cleanIdent}`],
         ['DEL', `scamshield:auth:lock:global:${cleanIdent}`]
       );
     }
@@ -746,18 +812,6 @@ export function getPrivacyHashedIp(clientIp: string): string {
   return crypto.createHmac('sha256', secret).update(`scamshield-quota:${clientIp}`).digest('hex').slice(0, 32);
 }
 
-// In-memory fallback spent challenge cache with automatic TTL cleanup
-const localSpentChallenges = new Map<string, number>();
-
-function cleanupLocalSpentChallenges() {
-  const now = Date.now();
-  for (const [chal, exp] of localSpentChallenges.entries()) {
-    if (now > exp) {
-      localSpentChallenges.delete(chal);
-    }
-  }
-}
-
 /**
  * Attempts to atomically consume a passkey challenge in Upstash Redis via SET key consumed EX 300 NX.
  * Returns true if fresh challenge consumed (SET succeeded), false if already consumed (key exists),
@@ -765,9 +819,9 @@ function cleanupLocalSpentChallenges() {
  */
 export async function consumeDistributedChallenge(challenge: string): Promise<boolean | null> {
   const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
-  if (!rawUrl || !token) {
+  if (!rawUrl || !redisToken) {
     return null;
   }
   const url = rawUrl.trim().replace(/\/+$/, '');
@@ -779,7 +833,7 @@ export async function consumeDistributedChallenge(challenge: string): Promise<bo
     const res = await fetch(`${url}/pipeline`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${redisToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify([
@@ -824,13 +878,13 @@ export async function consumePasskeyChallenge(
       };
     }
     // Record in local cache as well
-    cleanupLocalSpentChallenges();
+    cleanupLocalCaches();
     localSpentChallenges.set(challenge, Date.now() + 300_000);
     return { success: true, mode: 'distributed' };
   }
 
   // Layer 2: In-memory fallback spent challenge ledger
-  cleanupLocalSpentChallenges();
+  cleanupLocalCaches();
   if (localSpentChallenges.has(challenge)) {
     return {
       success: false,
@@ -868,9 +922,9 @@ export function isDistributedStoreConfigured(): boolean {
  */
 export async function incrementDistributedCounter(key: string, ttlSeconds = 86400 * 30): Promise<number | null> {
   const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
-  if (!rawUrl || !token) {
+  if (!rawUrl || !redisToken) {
     return null; // Distributed store not configured; fall back to signed cookie + instance memory
   }
   const url = rawUrl.trim().replace(/\/+$/, '');
@@ -885,7 +939,7 @@ export async function incrementDistributedCounter(key: string, ttlSeconds = 8640
     const res = await fetch(`${url}/pipeline`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${redisToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify([

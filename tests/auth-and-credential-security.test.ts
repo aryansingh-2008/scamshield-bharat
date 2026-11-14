@@ -153,12 +153,50 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       expect(attackerLockout.locked).toBe(true);
       expect(attackerLockout.scope).toBe('origin');
 
+      // Further attempts from the locked attacker IP must not increment or trigger global lock
+      const postLockAttempt = await recordFailedAuthAttempt(targetIdent, attackerIp);
+      expect(postLockAttempt.locked).toBe(true);
+      expect(postLockAttempt.scope).toBe('origin');
+
       // Legitimate user on legitimateIp is NOT locked out
       const legitimateLockout = await checkAccountLockout(targetIdent, legitimateIp);
       expect(legitimateLockout.locked).toBe(false);
 
       // Successful login from legitimate user resets account failures
       await clearFailedAuthAttempts(targetIdent, legitimateIp);
+    });
+
+    it('must require at least 5 distinct origins to trigger a global account lockout', async () => {
+      const targetIdent = `ssb-target-global-${Date.now()}`;
+      await clearFailedAuthAttempts(targetIdent);
+
+      // 4 distinct attacker IPs each attempt and fail once
+      for (let i = 1; i <= 4; i++) {
+        const ip = `198.51.100.${10 + i}`;
+        const attempt = await recordFailedAuthAttempt(targetIdent, ip);
+        expect(attempt.locked).toBe(false);
+      }
+
+      // Check account lockout from a 5th untried legitimate IP: not locked yet
+      const untriedIp = '203.0.113.50';
+      const checkBefore5 = await checkAccountLockout(targetIdent, untriedIp);
+      expect(checkBefore5.locked).toBe(false);
+
+      // 5th distinct IP fails
+      const fifthIp = '198.51.100.15';
+      const fifthAttempt = await recordFailedAuthAttempt(targetIdent, fifthIp);
+      expect(fifthAttempt.locked).toBe(true);
+      expect(fifthAttempt.scope).toBe('account');
+
+      // Now global account lockout is active for all origins
+      const checkAfter5 = await checkAccountLockout(targetIdent, untriedIp);
+      expect(checkAfter5.locked).toBe(true);
+      expect(checkAfter5.scope).toBe('account');
+
+      // Reset
+      await clearFailedAuthAttempts(targetIdent, untriedIp);
+      const afterClear = await checkAccountLockout(targetIdent, untriedIp);
+      expect(afterClear.locked).toBe(false);
     });
   });
 
@@ -269,6 +307,13 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
 
       expect(adminDuration).toBe(ADMIN_SESSION_TTL_SECONDS); // 7200 seconds (2 hours)
       expect(citizenDuration).toBe(CITIZEN_SESSION_TTL_SECONDS); // 604800 seconds (7 days)
+
+      // Verify signed 16-byte (32-char hex) unique jti
+      expect(adminPayload.jti).toBeDefined();
+      expect(adminPayload.jti?.length).toBe(32); // 16 bytes = 32 hex chars
+      expect(citizenPayload.jti).toBeDefined();
+      expect(citizenPayload.jti?.length).toBe(32);
+      expect(adminPayload.jti).not.toBe(citizenPayload.jti);
     });
 
     it('must invalidate sessions upon logout revocation across simulated instances', async () => {
