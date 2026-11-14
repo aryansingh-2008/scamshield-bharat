@@ -20,6 +20,7 @@ import {
   checkAccountLockout,
   clearFailedAuthAttempts,
   clearLocalAuthCaches,
+  getAuthSecret,
 } from '../src/lib/server-auth';
 import {
   verifyServerPresidentPasskey,
@@ -216,6 +217,23 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       const auth = authenticatePrivilegedCredentials('arti', 'SSB_Master_Admin_2026_xK9#vL2$pQ8*mZ1@wR4!');
       expect(auth.valid).toBe(false);
       expect(auth.code).toBe('INVALID_PRESIDENT_CREDENTIAL');
+    });
+
+    it('must fail closed when executive passkey environment variables are missing', () => {
+      delete process.env.MASTER_ADMIN_PASSKEY;
+      delete process.env.PRESIDENT_PASSKEY;
+
+      const adminAuth = authenticatePrivilegedCredentials('admin', 'AnyPasskeyAttempt1234567890!@#');
+      expect(adminAuth.valid).toBe(false);
+      expect(adminAuth.code).toBe('INVALID_ADMIN_CREDENTIAL');
+
+      const presAuth = authenticatePrivilegedCredentials('arti', 'AnyPasskeyAttempt1234567890!@#');
+      expect(presAuth.valid).toBe(false);
+      expect(presAuth.code).toBe('INVALID_PRESIDENT_CREDENTIAL');
+
+      const emptyAuth = authenticatePrivilegedCredentials('admin', '');
+      expect(emptyAuth.valid).toBe(false);
+      expect(emptyAuth.code).toBe('CREDENTIAL_REQUIRED');
     });
 
     it('must independently authorize server administrative sessions and gate Chief-Admin-Only actions', () => {
@@ -427,6 +445,29 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       const res = verifySessionToken(token);
       expect(res.valid).toBe(false);
       expect(res.error).toBe('EXPIRED_TOKEN');
+    });
+
+    it('must fail closed and throw fatal configuration error if AUTH_SECRET is missing or insecure in production', () => {
+      const origNodeEnv = process.env.NODE_ENV;
+      const origSecret = process.env.AUTH_SECRET;
+      const origSessionSecret = process.env.SESSION_SECRET;
+
+      try {
+        process.env.NODE_ENV = 'production';
+        delete process.env.AUTH_SECRET;
+        delete process.env.SESSION_SECRET;
+
+        expect(() => getAuthSecret()).toThrow(/FATAL CONFIGURATION ERROR/);
+
+        process.env.AUTH_SECRET = 'short';
+        expect(() => getAuthSecret()).toThrow(/FATAL CONFIGURATION ERROR/);
+      } finally {
+        process.env.NODE_ENV = origNodeEnv;
+        if (origSecret) process.env.AUTH_SECRET = origSecret;
+        else delete process.env.AUTH_SECRET;
+        if (origSessionSecret) process.env.SESSION_SECRET = origSessionSecret;
+        else delete process.env.SESSION_SECRET;
+      }
     });
   });
 
