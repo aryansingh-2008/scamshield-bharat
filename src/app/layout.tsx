@@ -5,11 +5,11 @@ import { AuthProvider } from '@/lib/auth-context';
 export const metadata: Metadata = {
   metadataBase: new URL('https://scamshieldbharat.live'),
   title: {
-    default: 'Scam Shield Bharat | India’s Financial Scam & Fraud Protection Assistant',
+    default: 'Scam Shield Bharat | Scam & Fraud Checker',
     template: '%s | Scam Shield Bharat',
   },
   description:
-    'Scam Shield Bharat (also known as ScamShield Bharat or ScamShield India) is India’s evidence-first financial cyber safety assistant. Safely verify suspicious stock tips, Telegram investment channels, phishing links, and payment fraud against official regulatory records.',
+    'Check suspicious links, investment offers and payment scams with Scam Shield Bharat.',
   keywords: [
     'Scam Shield Bharat',
     'ScamShield Bharat',
@@ -34,9 +34,9 @@ export const metadata: Metadata = {
     canonical: 'https://scamshieldbharat.live',
   },
   openGraph: {
-    title: 'Scam Shield Bharat | Evidence-First Scam Detection & Cyber Safety',
+    title: 'Scam Shield Bharat | Scam & Fraud Checker',
     description:
-      'Verify suspicious financial messages, fraudulent stock recommendations, phishing links, and fake investment apps against official SEBI and RBI records.',
+      'Check suspicious links, investment offers and payment scams with Scam Shield Bharat.',
     url: 'https://scamshieldbharat.live',
     siteName: 'Scam Shield Bharat',
     locale: 'en_IN',
@@ -44,9 +44,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Scam Shield Bharat | Cyber Fraud Detection Assistant',
+    title: 'Scam Shield Bharat | Scam & Fraud Checker',
     description:
-      'Evidence-first financial cyber safety assistant for Indian retail investors and citizens.',
+      'Check suspicious links, investment offers and payment scams with Scam Shield Bharat.',
   },
   robots: {
     index: true,

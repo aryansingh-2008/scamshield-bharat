@@ -2,16 +2,18 @@ import type { Metadata } from 'next';
 import React from 'react';
 
 export const metadata: Metadata = {
-  title: 'About Scam Shield Bharat | Mission, Identity & Scam Protection',
+  title: {
+    absolute: 'About Scam Shield Bharat | Our Mission',
+  },
   description:
-    'Learn about Scam Shield Bharat (also known as ScamShield Bharat / ScamShield). Discover our civic mission, scam detection technology, regulatory grounding (SEBI/RBI), and commitment to protecting Indian citizens against cyber fraud.',
+    'Learn about Scam Shield Bharat and our mission to help Indians identify online scams and fraud risks.',
   alternates: {
     canonical: 'https://scamshieldbharat.live/about',
   },
   openGraph: {
-    title: 'About Scam Shield Bharat | Civic Cyber Safety & Scam Protection',
+    title: 'About Scam Shield Bharat | Our Mission',
     description:
-      'Learn how Scam Shield Bharat helps retail investors and citizens identify fraudulent stock recommendations, Telegram investment scams, and phishing URLs.',
+      'Learn about Scam Shield Bharat and our mission to help Indians identify online scams and fraud risks.',
     url: 'https://scamshieldbharat.live/about',
     siteName: 'Scam Shield Bharat',
     locale: 'en_IN',

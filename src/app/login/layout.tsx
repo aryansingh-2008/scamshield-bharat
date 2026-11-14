@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     canonical: 'https://scamshieldbharat.live/login',
   },
   robots: {
-    index: true,
+    index: false,
     follow: true,
   },
 };

@@ -39,9 +39,9 @@ export default function Footer({ lang, onOpenTerms }: FooterProps) {
           </div>
 
           <div className="space-y-1.5">
-            <h5 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
+            <h3 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
               Cyber Fraud Reporting
-            </h5>
+            </h3>
             <div className="flex items-center gap-2">
               <a
                 href={`tel:${CYBERCRIME_HELPLINE.number}`}
@@ -66,9 +66,9 @@ export default function Footer({ lang, onOpenTerms }: FooterProps) {
           </div>
 
           <div className="space-y-1.5">
-            <h5 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
+            <h3 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
               SEBI Registries & Grievance
-            </h5>
+            </h3>
             <ul className="space-y-1.5">
               <li>
                 <a
@@ -107,9 +107,9 @@ export default function Footer({ lang, onOpenTerms }: FooterProps) {
           </div>
 
           <div className="space-y-1.5">
-            <h5 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
+            <h3 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
               RBI & Cybersecurity
-            </h5>
+            </h3>
             <ul className="space-y-1.5">
               <li>
                 <a
