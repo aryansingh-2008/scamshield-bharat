@@ -3,6 +3,11 @@ import {
   signSessionToken,
   SESSION_COOKIE_NAME,
   isDistributedStoreConfigured,
+  ADMIN_SESSION_TTL_SECONDS,
+  CITIZEN_SESSION_TTL_SECONDS,
+  checkAccountLockout,
+  recordFailedAuthAttempt,
+  clearFailedAuthAttempts,
 } from '@/lib/server-auth';
 import {
   MASTER_ADMIN_USER,
@@ -11,8 +16,9 @@ import {
   generateCitizenId,
 } from '@/lib/auth-constants';
 import {
-  verifyServerPresidentCredentials,
-  verifyServerAdminCredentials,
+  verifyServerPresidentPasskey,
+  verifyServerAdminPasskey,
+  isPinOnlyCandidate,
 } from '@/lib/server-admin-auth';
 
 export async function POST(req: NextRequest) {
@@ -22,7 +28,7 @@ export async function POST(req: NextRequest) {
     const isSecureCookie = process.env.NODE_ENV === 'production' && !isLocalhost;
 
     const body = await req.json();
-    const { identifier, password, role, name, isDemo, demoType } = body;
+    const { identifier, password, isDemo, demoType } = body;
 
     // 1. Handle Demo Login
     if (isDemo && demoType) {
@@ -49,7 +55,7 @@ export async function POST(req: NextRequest) {
         secure: isSecureCookie,
         sameSite: 'lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: CITIZEN_SESSION_TTL_SECONDS,
       });
 
       return response;
@@ -65,7 +71,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Check President Executive Credentials
     const isPresident =
       cleanIdent === 'arti' ||
       cleanIdent === 'president' ||
@@ -73,7 +78,17 @@ export async function POST(req: NextRequest) {
       cleanIdent === 'president@scamshieldbharat.live' ||
       cleanIdent === 'ssb-president-0001';
 
-    if (isPresident) {
+    const isMasterAdmin =
+      cleanIdent === 'admin' ||
+      cleanIdent === 'aryan' ||
+      cleanIdent === 'admin@scamshieldbharat.live' ||
+      cleanIdent === 'ssb-admin-0001';
+
+    const isPrivilegedAttempt = isPresident || isMasterAdmin;
+
+    // 2. Privileged Attempt Controls: Fail-Closed & Lockout Throttling
+    if (isPrivilegedAttempt) {
+      // Enforcement A: Distributed store requirement when configured
       if (process.env.REQUIRE_DISTRIBUTED_AUTH?.trim().toLowerCase() === 'true' && !isDistributedStoreConfigured()) {
         return NextResponse.json(
           {
@@ -84,13 +99,54 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const isPassValid = verifyServerPresidentCredentials(cleanPass);
-      if (!isPassValid) {
+      // Enforcement B: Account lockout check across serverless instances
+      const lockout = await checkAccountLockout(cleanIdent);
+      if (lockout.locked) {
         return NextResponse.json(
-          { error: 'Access Denied: Invalid President Security Passkey or PIN.' },
+          {
+            error: `Account temporarily locked due to excessive failed attempts. Please try again after ${Math.ceil(lockout.retryAfterSeconds / 60)} minutes.`,
+            code: 'ACCOUNT_LOCKED',
+            retryAfter: lockout.retryAfterSeconds,
+          },
+          {
+            status: 423,
+            headers: {
+              'Retry-After': String(lockout.retryAfterSeconds),
+            },
+          }
+        );
+      }
+
+      // Enforcement C: Reject numeric PIN as the sole privileged factor
+      if (isPinOnlyCandidate(cleanPass)) {
+        await recordFailedAuthAttempt(cleanIdent);
+        return NextResponse.json(
+          {
+            error: 'Access Denied: A numeric PIN cannot be used as the sole administrative authentication factor. Master Security Passkey is required.',
+            code: 'SOLE_PIN_DISALLOWED',
+          },
           { status: 401 }
         );
       }
+    }
+
+    // 3. Check President Executive Credentials (Strict Role Separation)
+    if (isPresident) {
+      const isPassValid = verifyServerPresidentPasskey(cleanPass);
+      if (!isPassValid) {
+        const failureState = await recordFailedAuthAttempt(cleanIdent);
+        return NextResponse.json(
+          {
+            error: failureState.locked
+              ? 'Access Denied: Account has been temporarily locked due to excessive failed attempts.'
+              : 'Access Denied: Invalid President Security Passkey.',
+            code: failureState.locked ? 'ACCOUNT_LOCKED' : 'INVALID_CREDENTIALS',
+          },
+          { status: failureState.locked ? 423 : 401 }
+        );
+      }
+
+      await clearFailedAuthAttempts(cleanIdent);
 
       const token = signSessionToken({
         uid: PRESIDENT_USER.uid!,
@@ -114,36 +170,29 @@ export async function POST(req: NextRequest) {
         secure: isSecureCookie,
         sameSite: 'lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: ADMIN_SESSION_TTL_SECONDS,
       });
 
       return response;
     }
 
-    // 3. Check Master Admin Credentials
-    const isMasterAdmin =
-      cleanIdent === 'admin' ||
-      cleanIdent === 'admin@scamshieldbharat.live' ||
-      cleanIdent === 'ssb-admin-0001';
-
+    // 4. Check Master Admin Credentials (Strict Role Separation)
     if (isMasterAdmin) {
-      if (process.env.REQUIRE_DISTRIBUTED_AUTH?.trim().toLowerCase() === 'true' && !isDistributedStoreConfigured()) {
+      const isPassValid = verifyServerAdminPasskey(cleanPass);
+      if (!isPassValid) {
+        const failureState = await recordFailedAuthAttempt(cleanIdent);
         return NextResponse.json(
           {
-            error: 'Security Policy Violation: Privileged administrative access requires an active distributed datastore. Access is failed-closed.',
-            code: 'DISTRIBUTED_STORE_REQUIRED',
+            error: failureState.locked
+              ? 'Access Denied: Account has been temporarily locked due to excessive failed attempts.'
+              : 'Access Denied: Invalid Master Admin Security Passkey.',
+            code: failureState.locked ? 'ACCOUNT_LOCKED' : 'INVALID_CREDENTIALS',
           },
-          { status: 503 }
+          { status: failureState.locked ? 423 : 401 }
         );
       }
 
-      const isPassValid = verifyServerAdminCredentials(cleanPass);
-      if (!isPassValid) {
-        return NextResponse.json(
-          { error: 'Access Denied: Invalid Master Admin Security Passkey.' },
-          { status: 401 }
-        );
-      }
+      await clearFailedAuthAttempts(cleanIdent);
 
       const token = signSessionToken({
         uid: MASTER_ADMIN_USER.uid!,
@@ -167,13 +216,13 @@ export async function POST(req: NextRequest) {
         secure: isSecureCookie,
         sameSite: 'lax',
         path: '/',
-        maxAge: 7 * 24 * 60 * 60,
+        maxAge: ADMIN_SESSION_TTL_SECONDS,
       });
 
       return response;
     }
 
-    // 4. Citizen / Retail Investor Member Authentication
+    // 5. Citizen / Retail Investor Member Authentication
     if (!cleanPass || cleanPass.length < 6) {
       return NextResponse.json(
         { error: 'Password must be at least 6 characters.' },
@@ -184,7 +233,10 @@ export async function POST(req: NextRequest) {
     const assignedUid = generateCitizenId();
     const citizenUser = {
       uid: assignedUid,
-      name: (name || '').trim() || (cleanIdent.includes('@') ? cleanIdent.split('@')[0] : `Citizen +91 ***${cleanIdent.replace(/\D/g, '').slice(-4)}`),
+      name:
+        cleanIdent.includes('@')
+          ? cleanIdent.split('@')[0]
+          : `Citizen +91 ***${cleanIdent.replace(/\D/g, '').slice(-4)}`,
       emailOrPhone: cleanIdent,
       role: 'investor' as const,
       designation: 'Verified Citizen Member',
@@ -206,7 +258,7 @@ export async function POST(req: NextRequest) {
       secure: isSecureCookie,
       sameSite: 'lax',
       path: '/',
-      maxAge: 7 * 24 * 60 * 60,
+      maxAge: CITIZEN_SESSION_TTL_SECONDS,
     });
 
     return response;

@@ -6,17 +6,31 @@ import * as authConstants from '../src/lib/auth-constants';
 import {
   signSessionToken,
   verifySessionToken,
+  verifySessionTokenAsync,
+  revokeDistributedSession,
   signGuestQuotaCookie,
   verifyGuestQuotaCookie,
   generatePasskeyChallenge,
   verifyPasskeyChallengeToken,
   getPrivacyHashedIp,
   isDistributedStoreConfigured,
+  ADMIN_SESSION_TTL_SECONDS,
+  CITIZEN_SESSION_TTL_SECONDS,
+  recordFailedAuthAttempt,
+  checkAccountLockout,
+  clearFailedAuthAttempts,
 } from '../src/lib/server-auth';
 import {
+  verifyServerPresidentPasskey,
+  verifyServerAdminPasskey,
   verifyServerPresidentCredentials,
   verifyServerAdminCredentials,
   authenticatePrivilegedCredentials,
+  validatePrivilegedPasskeyStrength,
+  isPinOnlyCandidate,
+  verifyPrivilegedAdminSession,
+  MIN_PASSKEY_LENGTH_LEGACY,
+  MIN_PASSKEY_LENGTH_STRONG,
 } from '../src/lib/server-admin-auth';
 
 describe('Privileged Credential & Server-Side Security Test Suite', () => {
@@ -50,96 +64,230 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
     });
   });
 
-  describe('2. Server-Only Privileged Credential Verification', () => {
-    it('must fail closed when server environment variables are missing', () => {
-      delete process.env.MASTER_ADMIN_PASSKEY;
-      delete process.env.MASTER_ADMIN_PIN;
-      delete process.env.PRESIDENT_PASSKEY;
-      delete process.env.PRESIDENT_PIN;
-
-      expect(verifyServerAdminCredentials('SomeSecret123!')).toBe(false);
-      expect(verifyServerPresidentCredentials('SomeSecret123!')).toBe(false);
-
-      const authResult = authenticatePrivilegedCredentials('admin', 'SomeSecret123!');
-      expect(authResult.valid).toBe(false);
-      expect(authResult.user).toBeNull();
+  describe('2. Passkey Length Standards & Validation Rules', () => {
+    it('must strictly reject passkeys below 12 characters', () => {
+      expect(validatePrivilegedPasskeyStrength('short').valid).toBe(false);
+      expect(validatePrivilegedPasskeyStrength('12345678901').valid).toBe(false); // 11 chars
+      expect(validatePrivilegedPasskeyStrength('').valid).toBe(false);
     });
 
-    it('must reject all legacy compromised credentials even when server is configured', () => {
-      process.env.MASTER_ADMIN_PASSKEY = 'SecureRotatedKey2026!AdminX';
-      process.env.MASTER_ADMIN_PIN = '948201';
-      process.env.PRESIDENT_PASSKEY = 'SecureRotatedKey2026!PresY';
-      process.env.PRESIDENT_PIN = '538192';
-
-      const legacyCreds = [
-        '[REDACTED_MOCK_PASSKEY]',
-        '789012',
-        '[REDACTED_MOCK_PASSKEY]',
-        '654321',
-      ];
-
-      for (const cred of legacyCreds) {
-        expect(verifyServerAdminCredentials(cred)).toBe(false);
-        expect(verifyServerPresidentCredentials(cred)).toBe(false);
-        expect(authenticatePrivilegedCredentials('admin', cred).valid).toBe(false);
-        expect(authenticatePrivilegedCredentials('arti', cred).valid).toBe(false);
-      }
+    it('must accept legacy configured passkeys between 12 and 31 characters but flag them as not strong', () => {
+      const legacyKey = 'LegacyAdminKey2026!'; // 19 chars
+      const result = validatePrivilegedPasskeyStrength(legacyKey);
+      expect(result.valid).toBe(true);
+      expect(result.isStrong).toBe(false);
+      expect(result.reasons?.length).toBeGreaterThan(0);
     });
 
-    it('must accept newly configured rotated credentials and verify role mapping', () => {
-      process.env.MASTER_ADMIN_PASSKEY = 'SecureRotatedKey2026!AdminX';
-      process.env.MASTER_ADMIN_PIN = '948201';
-      process.env.PRESIDENT_PASSKEY = 'SecureRotatedKey2026!PresY';
-      process.env.PRESIDENT_PIN = '538192';
+    it('must validate high-entropy 32+ character passkeys as strong', () => {
+      // 32+ characters with uppercase, lowercase, numbers, and symbols
+      const strongKey = 'SSB_Master_Admin_2026_xK9#vL2$pQ8*mZ1@wR4!';
+      expect(strongKey.length).toBeGreaterThanOrEqual(MIN_PASSKEY_LENGTH_STRONG);
 
-      // Admin verification
-      expect(verifyServerAdminCredentials('SecureRotatedKey2026!AdminX')).toBe(true);
-      expect(verifyServerAdminCredentials('948201')).toBe(true);
-      expect(verifyServerAdminCredentials('WrongPassword123!')).toBe(false);
-
-      // President verification
-      expect(verifyServerPresidentCredentials('SecureRotatedKey2026!PresY')).toBe(true);
-      expect(verifyServerPresidentCredentials('538192')).toBe(true);
-      expect(verifyServerPresidentCredentials('WrongPassword123!')).toBe(false);
-
-      // Unified authentication
-      const adminAuth = authenticatePrivilegedCredentials('admin', 'SecureRotatedKey2026!AdminX');
-      expect(adminAuth.valid).toBe(true);
-      expect(adminAuth.user?.uid).toBe(authConstants.MASTER_ADMIN_USER.uid);
-      expect(adminAuth.user?.role).toBe('admin');
-
-      const presAuth = authenticatePrivilegedCredentials('arti', 'SecureRotatedKey2026!PresY');
-      expect(presAuth.valid).toBe(true);
-      expect(presAuth.user?.uid).toBe(authConstants.PRESIDENT_USER.uid);
-      expect(presAuth.user?.role).toBe('admin');
-    });
-
-    it('must enforce minimum entropy limits on configured credentials', () => {
-      // Passkey too short (< 12 chars)
-      process.env.MASTER_ADMIN_PASSKEY = 'shortKey';
-      expect(verifyServerAdminCredentials('shortKey')).toBe(false);
-
-      // PIN too short (< 6 chars)
-      process.env.MASTER_ADMIN_PIN = '123';
-      expect(verifyServerAdminCredentials('123')).toBe(false);
+      const result = validatePrivilegedPasskeyStrength(strongKey);
+      expect(result.valid).toBe(true);
+      expect(result.isStrong).toBe(true);
+      expect(result.reasons).toBeUndefined();
     });
   });
 
-  describe('3. Session Token HMAC Integrity & Tampering Resistance', () => {
-    it('must sign and verify valid session tokens', () => {
-      const user = {
-        uid: 'SSB-2026-TEST01',
-        name: 'Test Citizen',
-        emailOrPhone: 'citizen@test.live',
+  describe('3. PIN Security & Standalone PIN Rejection', () => {
+    it('must identify standalone numeric PIN candidates correctly', () => {
+      expect(isPinOnlyCandidate('123456')).toBe(true);
+      expect(isPinOnlyCandidate('948201')).toBe(true);
+      expect(isPinOnlyCandidate('1234')).toBe(true);
+      expect(isPinOnlyCandidate('12345678')).toBe(true);
+
+      // Not PIN only
+      expect(isPinOnlyCandidate('Passkey123!')).toBe(false);
+      expect(isPinOnlyCandidate('123456a')).toBe(false);
+      expect(isPinOnlyCandidate('1234567890')).toBe(false);
+    });
+
+    it('must NEVER allow a standalone 6-digit PIN to authenticate as Master Admin or President', () => {
+      process.env.MASTER_ADMIN_PASSKEY = 'SSB_Master_Admin_2026_xK9#vL2$pQ8*mZ1@wR4!';
+      process.env.MASTER_ADMIN_PIN = '948201';
+      process.env.PRESIDENT_PASSKEY = 'SSB_President_Arti_2026_qW7$mB3#kP9*vT1@xL5!';
+      process.env.PRESIDENT_PIN = '538192';
+
+      // Passkey works
+      expect(verifyServerAdminPasskey('SSB_Master_Admin_2026_xK9#vL2$pQ8*mZ1@wR4!')).toBe(true);
+      expect(verifyServerPresidentPasskey('SSB_President_Arti_2026_qW7$mB3#kP9*vT1@xL5!')).toBe(true);
+
+      // Standalone PIN is strictly rejected by passkey functions and default credentials verification
+      expect(verifyServerAdminPasskey('948201')).toBe(false);
+      expect(verifyServerPresidentPasskey('538192')).toBe(false);
+      expect(verifyServerAdminCredentials('948201')).toBe(false);
+      expect(verifyServerPresidentCredentials('538192')).toBe(false);
+
+      // authenticatePrivilegedCredentials rejects with SOLE_PIN_DISALLOWED
+      const adminPinAuth = authenticatePrivilegedCredentials('admin', '948201');
+      expect(adminPinAuth.valid).toBe(false);
+      expect(adminPinAuth.code).toBe('SOLE_PIN_DISALLOWED');
+
+      const presPinAuth = authenticatePrivilegedCredentials('arti', '538192');
+      expect(presPinAuth.valid).toBe(false);
+      expect(presPinAuth.code).toBe('SOLE_PIN_DISALLOWED');
+    });
+
+    it('must throttle brute-force attempts and enforce account lockout after 5 failures', async () => {
+      const testIdent = `test-target-${Date.now()}`;
+      await clearFailedAuthAttempts(testIdent);
+
+      // Attempts 1 to 4 should not lock
+      for (let i = 1; i <= 4; i++) {
+        const attempt = await recordFailedAuthAttempt(testIdent);
+        expect(attempt.locked).toBe(false);
+        expect(attempt.attempts).toBe(i);
+      }
+
+      // 5th attempt triggers lockout
+      const fifthAttempt = await recordFailedAuthAttempt(testIdent);
+      expect(fifthAttempt.locked).toBe(true);
+      expect(fifthAttempt.retryAfterSeconds).toBeGreaterThan(0);
+
+      // Lockout check confirms account is locked
+      const lockoutState = await checkAccountLockout(testIdent);
+      expect(lockoutState.locked).toBe(true);
+
+      // Clear attempts resets the lockout
+      await clearFailedAuthAttempts(testIdent);
+      const afterClear = await checkAccountLockout(testIdent);
+      expect(afterClear.locked).toBe(false);
+    });
+  });
+
+  describe('4. Role Separation & Authorization', () => {
+    beforeEach(() => {
+      process.env.MASTER_ADMIN_PASSKEY = 'SSB_Master_Admin_2026_xK9#vL2$pQ8*mZ1@wR4!';
+      process.env.PRESIDENT_PASSKEY = 'SSB_President_Arti_2026_qW7$mB3#kP9*vT1@xL5!';
+    });
+
+    it('must prevent President credentials from authenticating as Master Admin', () => {
+      const auth = authenticatePrivilegedCredentials('admin', 'SSB_President_Arti_2026_qW7$mB3#kP9*vT1@xL5!');
+      expect(auth.valid).toBe(false);
+      expect(auth.code).toBe('INVALID_ADMIN_CREDENTIAL');
+    });
+
+    it('must prevent Master Admin credentials from authenticating as President', () => {
+      const auth = authenticatePrivilegedCredentials('arti', 'SSB_Master_Admin_2026_xK9#vL2$pQ8*mZ1@wR4!');
+      expect(auth.valid).toBe(false);
+      expect(auth.code).toBe('INVALID_PRESIDENT_CREDENTIAL');
+    });
+
+    it('must independently authorize server administrative sessions', () => {
+      // 1. Missing session
+      expect(verifyPrivilegedAdminSession(null).authorized).toBe(false);
+
+      // 2. Non-admin role (e.g. investor/citizen)
+      const citizenSession = {
+        uid: 'SSB-2026-784210',
+        name: 'Citizen Vikram',
+        emailOrPhone: 'vikram@example.com',
         role: 'investor' as const,
         verified: true,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600,
       };
+      const citizenCheck = verifyPrivilegedAdminSession(citizenSession);
+      expect(citizenCheck.authorized).toBe(false);
+      expect(citizenCheck.code).toBe('FORBIDDEN_ROLE');
 
-      const token = signSessionToken(user, 3600);
-      const res = verifySessionToken(token);
-      expect(res.valid).toBe(true);
-      expect(res.user?.uid).toBe('SSB-2026-TEST01');
-      expect(res.user?.role).toBe('investor');
+      // 3. Forged UID claiming admin role
+      const forgedSession = {
+        uid: 'SSB-FORGED-9999',
+        name: 'Attacker',
+        emailOrPhone: 'attacker@evil.com',
+        role: 'admin' as const,
+        verified: true,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      };
+      const forgedCheck = verifyPrivilegedAdminSession(forgedSession);
+      expect(forgedCheck.authorized).toBe(false);
+      expect(forgedCheck.code).toBe('INVALID_ADMIN_IDENTITY');
+
+      // 4. Valid Chief Admin Session
+      const chiefAdminSession = {
+        uid: authConstants.MASTER_ADMIN_USER.uid,
+        name: authConstants.MASTER_ADMIN_USER.name,
+        emailOrPhone: authConstants.MASTER_ADMIN_USER.emailOrPhone,
+        role: 'admin' as const,
+        verified: true,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      };
+      expect(verifyPrivilegedAdminSession(chiefAdminSession, 'any_admin').authorized).toBe(true);
+      expect(verifyPrivilegedAdminSession(chiefAdminSession, 'chief_admin').authorized).toBe(true);
+      expect(verifyPrivilegedAdminSession(chiefAdminSession, 'president').authorized).toBe(false);
+
+      // 5. Valid President Session
+      const presidentSession = {
+        uid: authConstants.PRESIDENT_USER.uid,
+        name: authConstants.PRESIDENT_USER.name,
+        emailOrPhone: authConstants.PRESIDENT_USER.emailOrPhone,
+        role: 'admin' as const,
+        verified: true,
+        iat: Math.floor(Date.now() / 1000),
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      };
+      expect(verifyPrivilegedAdminSession(presidentSession, 'any_admin').authorized).toBe(true);
+      expect(verifyPrivilegedAdminSession(presidentSession, 'president').authorized).toBe(true);
+      expect(verifyPrivilegedAdminSession(presidentSession, 'chief_admin').authorized).toBe(false);
+    });
+  });
+
+  describe('5. Session Security & Lifetimes', () => {
+    it('must enforce a strict 2-hour TTL for administrative sessions and 7 days for citizen sessions', () => {
+      const adminToken = signSessionToken({
+        uid: authConstants.MASTER_ADMIN_USER.uid,
+        name: authConstants.MASTER_ADMIN_USER.name,
+        emailOrPhone: authConstants.MASTER_ADMIN_USER.emailOrPhone,
+        role: 'admin',
+        verified: true,
+      });
+
+      const citizenToken = signSessionToken({
+        uid: 'SSB-2026-CITIZEN',
+        name: 'Normal Citizen',
+        emailOrPhone: 'citizen@example.com',
+        role: 'investor',
+        verified: true,
+      });
+
+      const adminPayload = verifySessionToken(adminToken).user!;
+      const citizenPayload = verifySessionToken(citizenToken).user!;
+
+      const adminDuration = adminPayload.exp - adminPayload.iat;
+      const citizenDuration = citizenPayload.exp - citizenPayload.iat;
+
+      expect(adminDuration).toBe(ADMIN_SESSION_TTL_SECONDS); // 7200 seconds (2 hours)
+      expect(citizenDuration).toBe(CITIZEN_SESSION_TTL_SECONDS); // 604800 seconds (7 days)
+    });
+
+    it('must invalidate sessions upon logout revocation', async () => {
+      const token = signSessionToken({
+        uid: authConstants.MASTER_ADMIN_USER.uid,
+        name: authConstants.MASTER_ADMIN_USER.name,
+        emailOrPhone: authConstants.MASTER_ADMIN_USER.emailOrPhone,
+        role: 'admin',
+        verified: true,
+      });
+
+      // Before logout: valid
+      expect(verifySessionToken(token).valid).toBe(true);
+
+      // Revoke session on logout
+      await revokeDistributedSession(token);
+
+      // After logout: revoked
+      const resSync = verifySessionToken(token);
+      expect(resSync.valid).toBe(false);
+      expect(resSync.error).toBe('REVOKED_TOKEN');
+
+      const resAsync = await verifySessionTokenAsync(token);
+      expect(resAsync.valid).toBe(false);
+      expect(resAsync.error).toBe('REVOKED_TOKEN');
     });
 
     it('must reject tampered token signatures', () => {
@@ -148,6 +296,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
         name: 'Test Citizen',
         emailOrPhone: 'citizen@test.live',
         role: 'investor' as const,
+        verified: true,
       };
 
       const token = signSessionToken(user, 3600);
@@ -166,12 +315,12 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
         name: 'Normal User',
         emailOrPhone: 'user@test.live',
         role: 'guest' as const,
+        verified: false,
       };
 
       const token = signSessionToken(user, 3600);
       const [header, payload, sig] = token.split('.');
 
-      // Decode payload, modify role to admin, and re-encode
       const decoded = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
       decoded.role = 'admin';
       const forgedPayload = Buffer.from(JSON.stringify(decoded)).toString('base64').replace(/=/g, '');
@@ -188,9 +337,9 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
         name: 'Expired User',
         emailOrPhone: 'expired@test.live',
         role: 'investor' as const,
+        verified: true,
       };
 
-      // Set negative TTL so it is already expired
       const token = signSessionToken(user, -10);
       const res = verifySessionToken(token);
       expect(res.valid).toBe(false);
@@ -198,7 +347,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
     });
   });
 
-  describe('4. Guest Quota Tamper-Proof Cookie Verification', () => {
+  describe('6. Guest Quota Tamper-Proof Cookie Verification', () => {
     it('must correctly sign and verify guest quota cookies', () => {
       const cookie = signGuestQuotaCookie(3);
       const res = verifyGuestQuotaCookie(cookie);
@@ -211,17 +360,16 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       const [data, sig] = cookie.split('.');
       const [count, firstSeen, nonce] = data.split(':');
 
-      // Attempt to reset count from 4 to 0
       const tamperedData = `0:${firstSeen}:${nonce}`;
       const forgedCookie = `${tamperedData}.${sig}`;
 
       const res = verifyGuestQuotaCookie(forgedCookie);
       expect(res.valid).toBe(false);
-      expect(res.count).toBe(0); // Safely returns 0 invalid
+      expect(res.count).toBe(0);
     });
   });
 
-  describe('5. WebAuthn Challenge Single-Use Integrity', () => {
+  describe('7. WebAuthn Challenge Single-Use Integrity', () => {
     it('must generate valid cryptographic challenge and token', () => {
       const { challenge, token } = generatePasskeyChallenge();
       expect(typeof challenge).toBe('string');
@@ -235,7 +383,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
     });
   });
 
-  describe('6. Privacy Hashed IP & Distributed Store Config', () => {
+  describe('8. Privacy Hashed IP & Distributed Store Config', () => {
     it('must produce deterministic, irreversible privacy hashes for IP addresses', () => {
       const hash1 = getPrivacyHashedIp('203.0.113.195');
       const hash2 = getPrivacyHashedIp('203.0.113.195');

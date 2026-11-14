@@ -137,11 +137,11 @@ export default function AdminPage() {
     if (typeof window !== 'undefined') {
       const isAuthedSession = sessionStorage.getItem('scamshield_admin_authenticated') === 'true';
       if (isAuthedSession) {
-        // Cryptographically verify active admin session with server
-        fetch('/api/auth/session')
+        // Cryptographically verify active privileged admin session with dedicated server endpoint
+        fetch('/api/admin/verify')
           .then((res) => res.json())
           .then((data) => {
-            if (data?.authenticated && data?.user?.role === 'admin') {
+            if (data?.authorized) {
               setIsAuthenticated(true);
               reloadData();
             } else {
@@ -192,6 +192,7 @@ export default function AdminPage() {
     }
     setIsAuthenticated(false);
     setPasskeyInput('');
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     logout();
   };
 

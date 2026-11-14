@@ -30,8 +30,30 @@ export const SESSION_COOKIE_NAME = 'ssb_session';
 export const GUEST_QUOTA_COOKIE_NAME = 'ssb_guest_quota';
 export const PASKEY_CHALLENGE_COOKIE_NAME = 'ssb_passkey_challenge';
 
-// Default session duration: 7 days
-const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
+// Session Lifetimes (NIST SP 800-63B / RBI Cybersecurity Guidelines)
+// Privileged administrative accounts are restricted to 2 hours maximum session duration
+export const ADMIN_SESSION_TTL_SECONDS = 2 * 60 * 60; // 2 hours
+export const CITIZEN_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
+
+// Brute-force throttling constants for privileged authentication
+export const MAX_PRIVILEGED_FAILED_ATTEMPTS = 5;
+export const PRIVILEGED_LOCKOUT_SECONDS = 15 * 60; // 15 minutes lockout
+
+// In-memory revocation and brute-force tracking caches (for instance-level fallback)
+const localRevokedTokens = new Map<string, number>();
+const localFailedAttempts = new Map<string, { count: number; lockedUntil: number; firstSeen: number }>();
+
+function cleanupLocalCaches() {
+  const now = Date.now();
+  for (const [hash, exp] of localRevokedTokens.entries()) {
+    if (now > exp) localRevokedTokens.delete(hash);
+  }
+  for (const [key, state] of localFailedAttempts.entries()) {
+    if (now > state.lockedUntil && now > state.firstSeen + PRIVILEGED_LOCKOUT_SECONDS * 1000) {
+      localFailedAttempts.delete(key);
+    }
+  }
+}
 
 // Resolve Secret: Environment variable AUTH_SECRET or secure fallback
 export function getAuthSecret(): string {
@@ -65,14 +87,32 @@ function base64UrlDecode(str: string): string {
 }
 
 /**
- * Sign a payload using HMAC-SHA256
+ * Computes deterministic SHA-256 hash of a session token for revocation lookups.
  */
-export function signSessionToken(user: Omit<ServerSessionPayload, 'iat' | 'exp'>, ttlSeconds = SESSION_TTL_SECONDS): string {
+export function hashSessionToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Sign a payload using HMAC-SHA256.
+ * Enforces a strict 2-hour TTL for administrative accounts, and 7 days for general citizen accounts.
+ */
+export function signSessionToken(
+  user: Omit<ServerSessionPayload, 'iat' | 'exp'>,
+  ttlSeconds?: number
+): string {
   const now = Math.floor(Date.now() / 1000);
+  const effectiveTtl =
+    ttlSeconds !== undefined
+      ? ttlSeconds
+      : user.role === 'admin'
+      ? ADMIN_SESSION_TTL_SECONDS
+      : CITIZEN_SESSION_TTL_SECONDS;
+
   const payload: ServerSessionPayload = {
     ...user,
     iat: now,
-    exp: now + ttlSeconds,
+    exp: now + effectiveTtl,
   };
 
   const header = { alg: 'HS256', typ: 'JWT' };
@@ -93,7 +133,7 @@ export function signSessionToken(user: Omit<ServerSessionPayload, 'iat' | 'exp'>
 }
 
 /**
- * Verify a session token's cryptographic HMAC-SHA256 signature and expiry
+ * Synchronous verification of a session token's cryptographic HMAC-SHA256 signature, expiry, and local revocation.
  */
 export function verifySessionToken(token: string | null | undefined): SessionVerificationResult {
   if (!token || typeof token !== 'string') {
@@ -103,6 +143,12 @@ export function verifySessionToken(token: string | null | undefined): SessionVer
   const parts = token.split('.');
   if (parts.length !== 3) {
     return { valid: false, user: null, error: 'MALFORMED_TOKEN' };
+  }
+
+  const tokenHash = hashSessionToken(token);
+  cleanupLocalCaches();
+  if (localRevokedTokens.has(tokenHash)) {
+    return { valid: false, user: null, error: 'REVOKED_TOKEN' };
   }
 
   const [encodedHeader, encodedPayload, signature] = parts;
@@ -141,6 +187,294 @@ export function verifySessionToken(token: string | null | undefined): SessionVer
     return { valid: true, user: payload };
   } catch (err) {
     return { valid: false, user: null, error: 'PARSE_ERROR' };
+  }
+}
+
+/**
+ * Asynchronous verification of session token including distributed Redis revocation checks.
+ */
+export async function verifySessionTokenAsync(token: string | null | undefined): Promise<SessionVerificationResult> {
+  const syncResult = verifySessionToken(token);
+  if (!syncResult.valid || !token) {
+    return syncResult;
+  }
+
+  const isRevoked = await isSessionRevoked(token);
+  if (isRevoked) {
+    return { valid: false, user: null, error: 'REVOKED_TOKEN' };
+  }
+
+  return syncResult;
+}
+
+/**
+ * Invalidate/Revoke a session across distributed serverless instances upon logout.
+ */
+export async function revokeDistributedSession(token: string | null | undefined): Promise<void> {
+  if (!token || typeof token !== 'string') return;
+
+  const tokenHash = hashSessionToken(token);
+  cleanupLocalCaches();
+  localRevokedTokens.set(tokenHash, Date.now() + 86400 * 1000);
+
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (!rawUrl || !redisToken) return;
+  const url = rawUrl.trim().replace(/\/+$/, '');
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+
+    await fetch(`${url}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['SET', `scamshield:revoked:${tokenHash}`, 'revoked', 'EX', 86400],
+      ]),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+  } catch {
+    // Non-fatal if Redis unreachable
+  }
+}
+
+/**
+ * Checks whether a session token has been revoked across distributed serverless instances.
+ */
+export async function isSessionRevoked(token: string): Promise<boolean> {
+  if (!token) return true;
+  const tokenHash = hashSessionToken(token);
+
+  cleanupLocalCaches();
+  if (localRevokedTokens.has(tokenHash)) {
+    return true;
+  }
+
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (!rawUrl || !redisToken) return false;
+  const url = rawUrl.trim().replace(/\/+$/, '');
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+
+    const res = await fetch(`${url}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['GET', `scamshield:revoked:${tokenHash}`],
+      ]),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      return Boolean(data?.[0]?.result);
+    }
+  } catch {
+    // Graceful fallback
+  }
+  return false;
+}
+
+/**
+ * Check if a privileged account or client IP is temporarily locked out due to excessive failed attempts.
+ */
+export async function checkAccountLockout(
+  identifier: string
+): Promise<{ locked: boolean; retryAfterSeconds: number }> {
+  const cleanIdent = (identifier || '').toLowerCase().trim();
+  if (!cleanIdent) return { locked: false, retryAfterSeconds: 0 };
+
+  cleanupLocalCaches();
+  const local = localFailedAttempts.get(cleanIdent);
+  if (local && Date.now() < local.lockedUntil) {
+    const remaining = Math.ceil((local.lockedUntil - Date.now()) / 1000);
+    return { locked: true, retryAfterSeconds: remaining };
+  }
+
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (!rawUrl || !redisToken) {
+    return { locked: false, retryAfterSeconds: 0 };
+  }
+  const url = rawUrl.trim().replace(/\/+$/, '');
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+
+    const res = await fetch(`${url}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['TTL', `scamshield:auth:lock:${cleanIdent}`],
+      ]),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      const ttl = data?.[0]?.result;
+      if (typeof ttl === 'number' && ttl > 0) {
+        return { locked: true, retryAfterSeconds: ttl };
+      }
+    }
+  } catch {
+    // Fall back to local ledger
+  }
+
+  return { locked: false, retryAfterSeconds: 0 };
+}
+
+/**
+ * Record a failed authentication attempt on a privileged account.
+ * Throttles brute-force guessing by enforcing a 15-minute lockout after 5 consecutive failures across all instances.
+ */
+export async function recordFailedAuthAttempt(
+  identifier: string
+): Promise<{ locked: boolean; attempts: number; retryAfterSeconds: number }> {
+  const cleanIdent = (identifier || '').toLowerCase().trim();
+  if (!cleanIdent) return { locked: false, attempts: 0, retryAfterSeconds: 0 };
+
+  cleanupLocalCaches();
+  const now = Date.now();
+  let localAttempts = 1;
+  const existing = localFailedAttempts.get(cleanIdent);
+
+  if (existing && now < existing.firstSeen + PRIVILEGED_LOCKOUT_SECONDS * 1000) {
+    localAttempts = existing.count + 1;
+  }
+
+  const isLocalLocked = localAttempts >= MAX_PRIVILEGED_FAILED_ATTEMPTS;
+  const lockedUntil = isLocalLocked ? now + PRIVILEGED_LOCKOUT_SECONDS * 1000 : 0;
+
+  localFailedAttempts.set(cleanIdent, {
+    count: localAttempts,
+    lockedUntil,
+    firstSeen: existing ? existing.firstSeen : now,
+  });
+
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (!rawUrl || !redisToken) {
+    return {
+      locked: isLocalLocked,
+      attempts: localAttempts,
+      retryAfterSeconds: isLocalLocked ? PRIVILEGED_LOCKOUT_SECONDS : 0,
+    };
+  }
+
+  const url = rawUrl.trim().replace(/\/+$/, '');
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+
+    const failKey = `scamshield:auth:fail:${cleanIdent}`;
+    const lockKey = `scamshield:auth:lock:${cleanIdent}`;
+
+    // Atomic Lua: Increment failed count, set TTL on 1st fail, and if >= 5 set lock key
+    const luaScript = `
+      local c = redis.call('INCR', KEYS[1])
+      if c == 1 then
+        redis.call('EXPIRE', KEYS[1], ARGV[1])
+      end
+      if c >= tonumber(ARGV[2]) then
+        redis.call('SET', KEYS[2], 'locked', 'EX', ARGV[1])
+      end
+      return c
+    `;
+
+    const res = await fetch(`${url}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['EVAL', luaScript, 2, failKey, lockKey, String(PRIVILEGED_LOCKOUT_SECONDS), String(MAX_PRIVILEGED_FAILED_ATTEMPTS)],
+      ]),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      const count = data?.[0]?.result;
+      if (typeof count === 'number') {
+        const locked = count >= MAX_PRIVILEGED_FAILED_ATTEMPTS;
+        return {
+          locked,
+          attempts: count,
+          retryAfterSeconds: locked ? PRIVILEGED_LOCKOUT_SECONDS : 0,
+        };
+      }
+    }
+  } catch {
+    // Fall back to local ledger result
+  }
+
+  return {
+    locked: isLocalLocked,
+    attempts: localAttempts,
+    retryAfterSeconds: isLocalLocked ? PRIVILEGED_LOCKOUT_SECONDS : 0,
+  };
+}
+
+/**
+ * Reset failed attempts on a successful privileged login.
+ */
+export async function clearFailedAuthAttempts(identifier: string): Promise<void> {
+  const cleanIdent = (identifier || '').toLowerCase().trim();
+  if (!cleanIdent) return;
+
+  cleanupLocalCaches();
+  localFailedAttempts.delete(cleanIdent);
+
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (!rawUrl || !redisToken) return;
+  const url = rawUrl.trim().replace(/\/+$/, '');
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+
+    await fetch(`${url}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([
+        ['DEL', `scamshield:auth:fail:${cleanIdent}`],
+        ['DEL', `scamshield:auth:lock:${cleanIdent}`],
+      ]),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+  } catch {
+    // Non-fatal
   }
 }
 

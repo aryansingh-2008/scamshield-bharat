@@ -5,6 +5,8 @@ import {
   signSessionToken,
   SESSION_COOKIE_NAME,
   PASKEY_CHALLENGE_COOKIE_NAME,
+  ADMIN_SESSION_TTL_SECONDS,
+  CITIZEN_SESSION_TTL_SECONDS,
 } from '@/lib/server-auth';
 import {
   MASTER_ADMIN_USER,
@@ -12,8 +14,9 @@ import {
   UserProfile,
 } from '@/lib/auth-constants';
 import {
-  verifyServerPresidentCredentials,
-  verifyServerAdminCredentials,
+  verifyServerPresidentPasskey,
+  verifyServerAdminPasskey,
+  isPinOnlyCandidate,
 } from '@/lib/server-admin-auth';
 
 export async function POST(req: NextRequest) {
@@ -23,7 +26,7 @@ export async function POST(req: NextRequest) {
     const isSecureCookie = process.env.NODE_ENV === 'production' && !isLocalhost;
 
     const body = await req.json();
-    const { challenge, clientDataJSON, authenticatorData, signature, userType, passkeySecret } = body;
+    const { challenge, userType, passkeySecret } = body;
 
     const challengeCookie = req.cookies.get(PASKEY_CHALLENGE_COOKIE_NAME)?.value;
     if (!challengeCookie || !verifyPasskeyChallengeToken(challengeCookie, challenge)) {
@@ -38,24 +41,35 @@ export async function POST(req: NextRequest) {
     const claimsAdmin = userType === 'admin';
     const hasSecret = Boolean(cleanSecret);
 
-    // Verify privileged claims strictly on the server
+    // If an administrative claim or secret is provided, disallow standalone PIN
+    if ((claimsPresident || claimsAdmin || hasSecret) && isPinOnlyCandidate(cleanSecret)) {
+      return NextResponse.json(
+        {
+          error: 'Access Denied: A numeric PIN cannot be used as the sole administrative factor. Master Security Passkey is required.',
+          code: 'SOLE_PIN_DISALLOWED',
+        },
+        { status: 401 }
+      );
+    }
+
+    // Verify privileged claims strictly on the server with strict role separation
     let privilegedUser: UserProfile | null = null;
 
     if (claimsPresident || claimsAdmin || hasSecret) {
       if (claimsPresident) {
-        if (!verifyServerPresidentCredentials(cleanSecret)) {
+        if (!verifyServerPresidentPasskey(cleanSecret)) {
           return NextResponse.json({ error: 'Access Denied: Invalid President Security Passkey.' }, { status: 401 });
         }
         privilegedUser = PRESIDENT_USER;
       } else if (claimsAdmin) {
-        if (!verifyServerAdminCredentials(cleanSecret)) {
+        if (!verifyServerAdminPasskey(cleanSecret)) {
           return NextResponse.json({ error: 'Access Denied: Invalid Master Admin Security Passkey.' }, { status: 401 });
         }
         privilegedUser = MASTER_ADMIN_USER;
       } else if (hasSecret) {
-        if (verifyServerPresidentCredentials(cleanSecret)) {
+        if (verifyServerPresidentPasskey(cleanSecret)) {
           privilegedUser = PRESIDENT_USER;
-        } else if (verifyServerAdminCredentials(cleanSecret)) {
+        } else if (verifyServerAdminPasskey(cleanSecret)) {
           privilegedUser = MASTER_ADMIN_USER;
         } else {
           return NextResponse.json({ error: 'Access Denied: Unrecognized Security Passkey.' }, { status: 401 });
@@ -100,6 +114,8 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    const sessionTtl = isPrivileged ? ADMIN_SESSION_TTL_SECONDS : CITIZEN_SESSION_TTL_SECONDS;
+
     const token = signSessionToken({
       uid: authorizedUser.uid!,
       name: authorizedUser.name,
@@ -108,7 +124,7 @@ export async function POST(req: NextRequest) {
       designation: authorizedUser.designation,
       organization: authorizedUser.organization,
       verified: true,
-    });
+    }, sessionTtl);
 
     const response = NextResponse.json(
       {
@@ -129,7 +145,7 @@ export async function POST(req: NextRequest) {
       secure: isSecureCookie,
       sameSite: 'lax',
       path: '/',
-      maxAge: 7 * 24 * 60 * 60,
+      maxAge: sessionTtl,
     });
 
     // Clear challenge cookie
