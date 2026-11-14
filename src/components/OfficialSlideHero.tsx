@@ -73,8 +73,8 @@ export default function OfficialSlideHero({ lang }: OfficialSlideHeroProps) {
           {/* Subtitle */}
           <p className="text-xs sm:text-sm lg:text-[14.5px] text-slate-600 font-sans leading-relaxed max-w-xl">
             {isHindi
-              ? 'स्कैम शील्ड भारत (ScamShield Bharat) — भारतीय नागरिकों व खुदरा निवेशकों के लिए प्रमाण-आधारित सुरक्षा सहायक। संदिग्ध निवेश संदेशों, टेलीग्राम चैनलों, फर्जी लिंक और ऑनलाइन धोखाधड़ी की आधिकारिक विनियामक स्रोतों (SEBI / RBI Sachet) से तुरंत पुष्टि करें।'
-              : 'Scam Shield Bharat (also known as ScamShield Bharat / ScamShield) is India’s evidence-first financial cyber safety assistant. Safely verify suspicious messages, phishing URLs, fake investment schemes, and fraudulent payment links against official regulatory records.'}
+              ? 'स्कैम शील्ड भारत (ScamShield Bharat / ScamShield / Scam Bharat / ScamShield India) — भारतीय नागरिकों व खुदरा निवेशकों के लिए प्रमाण-आधारित सुरक्षा सहायक। संदिग्ध निवेश संदेशों, टेलीग्राम चैनलों, फर्जी लिंक और ऑनलाइन धोखाधड़ी की आधिकारिक विनियामक स्रोतों (SEBI / RBI Sachet) से तुरंत पुष्टि करें।'
+              : 'Scam Shield Bharat (also known as ScamShield Bharat, ScamShield, Scam Shield India, or Scam Bharat) is India’s evidence-first financial cyber safety assistant. Safely verify suspicious messages, phishing URLs, fake investment schemes, and fraudulent payment links against official regulatory records.'}
           </p>
 
           {/* 4 HORIZONTAL FEATURE CARDS ROW (Exact 4-Column Grid) */}
