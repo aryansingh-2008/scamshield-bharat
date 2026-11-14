@@ -248,12 +248,13 @@ function cleanupLocalSpentChallenges() {
  * or null if Redis is not configured.
  */
 export async function consumeDistributedChallenge(challenge: string): Promise<boolean | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
-  if (!url || !token) {
+  if (!rawUrl || !token) {
     return null;
   }
+  const url = rawUrl.trim().replace(/\/+$/, '');
 
   try {
     const controller = new AbortController();
@@ -350,12 +351,13 @@ export function isDistributedStoreConfigured(): boolean {
  * Uses an atomic Lua script to execute INCR and EXPIRE in a single Redis transaction.
  */
 export async function incrementDistributedCounter(key: string, ttlSeconds = 86400 * 30): Promise<number | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
-  if (!url || !token) {
+  if (!rawUrl || !token) {
     return null; // Distributed store not configured; fall back to signed cookie + instance memory
   }
+  const url = rawUrl.trim().replace(/\/+$/, '');
 
   try {
     const controller = new AbortController();
