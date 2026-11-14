@@ -190,8 +190,12 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: any) {
+    const isDev = process.env.NODE_ENV !== 'production';
     return NextResponse.json(
-      { error: 'Authentication failed due to an unexpected error.', details: error?.message || String(error) },
+      {
+        error: 'Authentication failed due to a server configuration or processing error.',
+        ...(isDev ? { details: error?.message || String(error) } : {}),
+      },
       { status: 500 }
     );
   }

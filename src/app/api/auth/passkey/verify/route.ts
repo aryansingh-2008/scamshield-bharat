@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   verifyPasskeyChallengeToken,
+  consumePasskeyChallenge,
   signSessionToken,
   SESSION_COOKIE_NAME,
   PASKEY_CHALLENGE_COOKIE_NAME,
@@ -29,9 +30,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanSecret = (passkeySecret || '').trim();
+    const isPrivileged = cleanSecret === PRESIDENT_PASSKEY || cleanSecret === MASTER_ADMIN_PASSKEY || userType === 'president' || userType === 'admin';
+
+    // Atomic Server-Side Challenge Consumption (Guaranteed Single-Use)
+    const consumption = await consumePasskeyChallenge(challenge, isPrivileged);
+    if (!consumption.success) {
+      return NextResponse.json(
+        {
+          error: consumption.error === 'CHALLENGE_ALREADY_CONSUMED'
+            ? 'Security challenge has already been consumed. Replay attacks are rejected.'
+            : 'Security challenge validation failed. Please request a new passkey prompt.',
+          code: consumption.error,
+        },
+        { status: 400 }
+      );
+    }
+
     // Determine user profile based on passkey secret or WebAuthn assertion
     let authorizedUser = null;
-    const cleanSecret = (passkeySecret || '').trim();
 
     if (cleanSecret === PRESIDENT_PASSKEY || userType === 'president') {
       if (cleanSecret && cleanSecret !== PRESIDENT_PASSKEY) {
@@ -66,10 +83,17 @@ export async function POST(req: NextRequest) {
       verified: true,
     });
 
-    const response = NextResponse.json({
-      success: true,
-      user: authorizedUser,
-    });
+    const response = NextResponse.json(
+      {
+        success: true,
+        user: authorizedUser,
+      },
+      {
+        headers: {
+          'X-Passkey-SingleUse-Mode': consumption.mode,
+        },
+      }
+    );
 
     response.cookies.set({
       name: SESSION_COOKIE_NAME,

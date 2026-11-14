@@ -9,6 +9,7 @@ import {
   signGuestQuotaCookie,
   verifyGuestQuotaCookie,
   incrementDistributedCounter,
+  getPrivacyHashedIp,
   SESSION_COOKIE_NAME,
   GUEST_QUOTA_COOKIE_NAME,
 } from '@/lib/server-auth';
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
     const isAuthenticated = authVerification.valid && authVerification.user !== null;
 
     let newGuestQuotaCookie: string | null = null;
+    let quotaStoreMode: 'authenticated' | 'distributed-redis' | 'local-ledger-fallback' = 'authenticated';
 
     if (!isAuthenticated) {
       // 3. Multi-Layered Guest Quota Enforcement (5 scans per IP / Device)
@@ -65,10 +67,12 @@ export async function POST(req: NextRequest) {
       // Check B: In-memory IP ledger
       const ipQuota = checkIpFreeQuota(clientIp);
 
-      // Check C: Distributed Redis/KV store (if configured)
-      const distributedCount = await incrementDistributedCounter(`scamshield:guest:${clientIp}`, 86400 * 30);
+      // Check C: Distributed Redis/KV store with privacy-hashed IP (if configured)
+      const privacyHashedKey = `scamshield:guest:${getPrivacyHashedIp(clientIp)}`;
+      const distributedCount = await incrementDistributedCounter(privacyHashedKey, 86400 * 30);
+      quotaStoreMode = distributedCount !== null ? 'distributed-redis' : 'local-ledger-fallback';
 
-      // Current scan count is the maximum observed across all protection layers
+      // Current scan count is the maximum observed across all active protection layers
       const cookieScans = guestCookieVerification.valid ? guestCookieVerification.count : 0;
       const effectiveScans = Math.max(
         cookieScans,
@@ -89,6 +93,7 @@ export async function POST(req: NextRequest) {
             status: 402,
             headers: {
               'X-Guest-Scans-Remaining': '0',
+              'X-Quota-Store': quotaStoreMode,
             },
           }
         );
@@ -145,6 +150,7 @@ export async function POST(req: NextRequest) {
         headers: {
           'X-RateLimit-Remaining': String(rateLimit.remaining),
           'X-Auth-Verified': isAuthenticated ? 'true' : 'false',
+          'X-Quota-Store': quotaStoreMode,
         },
       });
 
@@ -215,6 +221,7 @@ export async function POST(req: NextRequest) {
       headers: {
         'X-RateLimit-Remaining': String(rateLimit.remaining),
         'X-Auth-Verified': isAuthenticated ? 'true' : 'false',
+        'X-Quota-Store': quotaStoreMode,
       },
     });
 

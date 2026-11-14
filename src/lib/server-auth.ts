@@ -34,12 +34,17 @@ export const PASKEY_CHALLENGE_COOKIE_NAME = 'ssb_passkey_challenge';
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 // Resolve Secret: Environment variable AUTH_SECRET or secure fallback
-function getAuthSecret(): string {
+export function getAuthSecret(): string {
   const envSecret = process.env.AUTH_SECRET || process.env.SESSION_SECRET;
   if (envSecret && envSecret.length >= 16) {
     return envSecret;
   }
-  // Deterministic local application secret (used if no environment variable is provisioned)
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'FATAL CONFIGURATION ERROR: AUTH_SECRET environment variable is missing or insecure (<16 characters) in production. Authentication operations halted.'
+    );
+  }
+  // Deterministic local development/test application secret
   return 'scamshield-bharat-auth-salt-8f92b7c4d1e3a6f0';
 }
 
@@ -214,6 +219,116 @@ export function verifyPasskeyChallengeToken(token: string | null | undefined, ex
   if (Date.now() > exp) return false;
 
   return challenge === expectedChallenge;
+}
+
+/**
+ * Generates a stable, privacy-preserving cryptographic hash of a client IP address.
+ * Avoids persisting plain IPv4/IPv6 addresses in logs or distributed datastores.
+ */
+export function getPrivacyHashedIp(clientIp: string): string {
+  const secret = getAuthSecret();
+  return crypto.createHmac('sha256', secret).update(`scamshield-quota:${clientIp}`).digest('hex').slice(0, 32);
+}
+
+// In-memory fallback spent challenge cache with automatic TTL cleanup
+const localSpentChallenges = new Map<string, number>();
+
+function cleanupLocalSpentChallenges() {
+  const now = Date.now();
+  for (const [chal, exp] of localSpentChallenges.entries()) {
+    if (now > exp) {
+      localSpentChallenges.delete(chal);
+    }
+  }
+}
+
+/**
+ * Attempts to atomically consume a passkey challenge in Upstash Redis via SET key consumed EX 300 NX.
+ * Returns true if fresh challenge consumed (SET succeeded), false if already consumed (key exists),
+ * or null if Redis is not configured.
+ */
+export async function consumeDistributedChallenge(challenge: string): Promise<boolean | null> {
+  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (!url || !token) {
+    return null;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+
+    const res = await fetch(`${url}/set/scamshield:challenge:${challenge}/consumed/EX/300/NX`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      // Upstash REST returns { result: "OK" } if key was set, or { result: null } if already existed
+      return data?.result === 'OK';
+    }
+  } catch {
+    // Redis connection error
+  }
+  return null;
+}
+
+/**
+ * Atomically consumes a passkey challenge to guarantee single-use.
+ * Rejects replay attacks even if original raw cookie and assertion are re-sent.
+ */
+export async function consumePasskeyChallenge(
+  challenge: string,
+  isPrivileged: boolean = false
+): Promise<{ success: boolean; error?: string; mode: 'distributed' | 'instance_memory' }> {
+  if (!challenge || typeof challenge !== 'string') {
+    return { success: false, error: 'INVALID_CHALLENGE', mode: 'instance_memory' };
+  }
+
+  // Layer 1: Distributed atomic SET NX EX 300 via Redis
+  const distributedResult = await consumeDistributedChallenge(challenge);
+
+  if (distributedResult !== null) {
+    if (!distributedResult) {
+      return {
+        success: false,
+        error: 'CHALLENGE_ALREADY_CONSUMED',
+        mode: 'distributed',
+      };
+    }
+    // Record in local cache as well
+    cleanupLocalSpentChallenges();
+    localSpentChallenges.set(challenge, Date.now() + 300_000);
+    return { success: true, mode: 'distributed' };
+  }
+
+  // Layer 2: In-memory fallback spent challenge ledger
+  cleanupLocalSpentChallenges();
+  if (localSpentChallenges.has(challenge)) {
+    return {
+      success: false,
+      error: 'CHALLENGE_ALREADY_CONSUMED',
+      mode: 'instance_memory',
+    };
+  }
+
+  // Fail closed if privileged authentication explicitly requires distributed lock in configuration
+  if (isPrivileged && process.env.REQUIRE_DISTRIBUTED_AUTH === 'true') {
+    return {
+      success: false,
+      error: 'DISTRIBUTED_STORE_REQUIRED_FOR_PRIVILEGED_AUTH',
+      mode: 'instance_memory',
+    };
+  }
+
+  localSpentChallenges.set(challenge, Date.now() + 300_000);
+  return { success: true, mode: 'instance_memory' };
 }
 
 /**
