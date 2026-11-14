@@ -129,6 +129,105 @@ export function verifyServerPresidentPasskey(candidate: string | null | undefine
   return timingSafeCompare(clean, configuredPasskey);
 }
 
+export interface CustomAdminPasskeyRecord {
+  salt: string;
+  hash: string;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+let inMemoryCustomAdminPasskey: CustomAdminPasskeyRecord | null = null;
+
+export function computePasskeyHash(passkey: string, salt: string): string {
+  return crypto.pbkdf2Sync(passkey, salt, 100000, 32, 'sha256').toString('hex');
+}
+
+export function resetCustomAdminPasskeyForTesting(): void {
+  inMemoryCustomAdminPasskey = null;
+}
+
+export async function getCustomAdminPasskeyRecordAsync(): Promise<CustomAdminPasskeyRecord | null> {
+  if (inMemoryCustomAdminPasskey) {
+    return inMemoryCustomAdminPasskey;
+  }
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  if (!rawUrl || !redisToken) return inMemoryCustomAdminPasskey;
+
+  try {
+    const url = rawUrl.trim().replace(/\/+$/, '');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${url}/get/scamshield:auth:admin:custom_passkey`, {
+      headers: { Authorization: `Bearer ${redisToken}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.result) {
+        const parsed = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
+        if (parsed?.salt && parsed?.hash) {
+          inMemoryCustomAdminPasskey = parsed;
+          return parsed;
+        }
+      }
+    }
+  } catch {
+    // fallback to in-memory
+  }
+  return inMemoryCustomAdminPasskey;
+}
+
+export async function setCustomAdminPasskeyRecordAsync(
+  newPasskey: string,
+  updatedBy: string
+): Promise<{ success: boolean; error?: string }> {
+  const clean = (newPasskey || '').trim();
+  if (isPinOnlyCandidate(clean)) {
+    return { success: false, error: 'Standalone numeric PINs are not allowed as admin passkey.' };
+  }
+  const strength = validatePrivilegedPasskeyStrength(clean);
+  if (!strength.valid) {
+    return { success: false, error: strength.error || 'Passkey does not meet security requirements.' };
+  }
+
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = computePasskeyHash(clean, salt);
+  const record: CustomAdminPasskeyRecord = {
+    salt,
+    hash,
+    updatedAt: new Date().toISOString(),
+    updatedBy,
+  };
+
+  inMemoryCustomAdminPasskey = record;
+
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  if (rawUrl && redisToken) {
+    try {
+      const url = rawUrl.trim().replace(/\/+$/, '');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1500);
+      await fetch(`${url}/set/scamshield:auth:admin:custom_passkey`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${redisToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(record),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+    } catch {
+      // Non-fatal if Redis write times out in local test environment
+    }
+  }
+
+  return { success: true };
+}
+
 /**
  * Verify whether provided secret matches rotated Master Admin passkey.
  * Reads solely from server environment variable: MASTER_ADMIN_PASSKEY.
@@ -148,6 +247,38 @@ export function verifyServerAdminPasskey(candidate: string | null | undefined): 
     return false;
   }
 
+  // 1. If in-memory custom passkey is set, it strictly supersedes the default env passkey
+  if (inMemoryCustomAdminPasskey) {
+    const candidateHash = computePasskeyHash(clean, inMemoryCustomAdminPasskey.salt);
+    return timingSafeCompare(candidateHash, inMemoryCustomAdminPasskey.hash);
+  }
+
+  const configuredPasskey = process.env.MASTER_ADMIN_PASSKEY?.trim();
+  if (!configuredPasskey || configuredPasskey.length < MIN_PASSKEY_LENGTH_LEGACY) {
+    return false; // Fail closed
+  }
+
+  return timingSafeCompare(clean, configuredPasskey);
+}
+
+export async function verifyServerAdminPasskeyAsync(candidate: string | null | undefined): Promise<boolean> {
+  if (!candidate || typeof candidate !== 'string') return false;
+  const clean = candidate.trim();
+  if (!clean) return false;
+
+  // Enforce: Standalone PIN cannot grant executive access
+  if (isPinOnlyCandidate(clean)) {
+    return false;
+  }
+
+  // 1. If custom passkey record exists, it strictly supersedes the default env passkey
+  const customRecord = await getCustomAdminPasskeyRecordAsync();
+  if (customRecord) {
+    const candidateHash = computePasskeyHash(clean, customRecord.salt);
+    return timingSafeCompare(candidateHash, customRecord.hash);
+  }
+
+  // 2. Fall back to environment variable
   const configuredPasskey = process.env.MASTER_ADMIN_PASSKEY?.trim();
   if (!configuredPasskey || configuredPasskey.length < MIN_PASSKEY_LENGTH_LEGACY) {
     return false; // Fail closed
@@ -213,10 +344,17 @@ export function verifyServerAdminCredentials(
  * 3. Master Admin credentials CANNOT unlock President account.
  * 4. Missing configuration strictly fails closed.
  */
+export type PrivilegedAuthResult = {
+  valid: boolean;
+  user: UserProfile | null;
+  error?: string;
+  code?: string;
+};
+
 export function authenticatePrivilegedCredentials(
   identifier: string | null | undefined,
   candidateSecret: string | null | undefined
-): { valid: boolean; user: UserProfile | null; error?: string; code?: string } {
+): PrivilegedAuthResult {
   const cleanSecret = (candidateSecret || '').trim();
   if (!cleanSecret) {
     return { valid: false, user: null, error: 'CREDENTIAL_REQUIRED', code: 'CREDENTIAL_REQUIRED' };
@@ -280,6 +418,78 @@ export function authenticatePrivilegedCredentials(
     return { valid: true, user: PRESIDENT_USER };
   }
   if (verifyServerAdminPasskey(cleanSecret)) {
+    return { valid: true, user: MASTER_ADMIN_USER };
+  }
+
+  return {
+    valid: false,
+    user: null,
+    error: 'Access Denied: Invalid administrative credentials.',
+    code: 'INVALID_CREDENTIAL',
+  };
+}
+
+export async function authenticatePrivilegedCredentialsAsync(
+  identifier: string | null | undefined,
+  secret: string | null | undefined
+): Promise<PrivilegedAuthResult> {
+  const cleanIdent = (identifier || '').toLowerCase().trim();
+  const cleanSecret = (secret || '').trim();
+
+  if (!cleanSecret) {
+    return {
+      valid: false,
+      user: null,
+      error: 'Secret passkey is required.',
+      code: 'MISSING_CREDENTIALS',
+    };
+  }
+
+  const isPresidentIdent =
+    cleanIdent === 'arti' ||
+    cleanIdent === 'president' ||
+    cleanIdent === 'arti@scamshieldbharat.live' ||
+    cleanIdent === 'president@scamshieldbharat.live' ||
+    cleanIdent === 'ssb-president-0001';
+
+  const isMasterAdminIdent =
+    cleanIdent === 'admin' ||
+    cleanIdent === 'aryan' ||
+    cleanIdent === 'admin@scamshieldbharat.live' ||
+    cleanIdent === 'ssb-admin-0001' ||
+    cleanIdent === 'ssb-admin-unlock';
+
+  // 1. Explicit President Identifier: MUST match President passkey only
+  if (isPresidentIdent) {
+    if (verifyServerPresidentPasskey(cleanSecret)) {
+      return { valid: true, user: PRESIDENT_USER };
+    }
+    return {
+      valid: false,
+      user: null,
+      error: 'Access Denied: Invalid President Security Passkey.',
+      code: 'INVALID_PRESIDENT_CREDENTIAL',
+    };
+  }
+
+  // 2. Explicit Master Admin Identifier: MUST match Master Admin passkey only
+  if (isMasterAdminIdent) {
+    if (await verifyServerAdminPasskeyAsync(cleanSecret)) {
+      return { valid: true, user: MASTER_ADMIN_USER };
+    }
+    return {
+      valid: false,
+      user: null,
+      error: 'Access Denied: Invalid Master Admin Security Passkey.',
+      code: 'INVALID_ADMIN_CREDENTIAL',
+    };
+  }
+
+  // 3. Fallback: If no explicit identifier, identify by distinct passkey
+  if (verifyServerPresidentPasskey(cleanSecret)) {
+    return { valid: true, user: PRESIDENT_USER };
+  }
+  if (await verifyServerAdminPasskeyAsync(cleanSecret)) {
     return { valid: true, user: MASTER_ADMIN_USER };
   }
 

@@ -18,6 +18,7 @@ import {
 import {
   verifyServerPresidentPasskey,
   verifyServerAdminPasskey,
+  verifyServerAdminPasskeyAsync,
   isPinOnlyCandidate,
 } from '@/lib/server-admin-auth';
 
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Check Master Admin Credentials (Strict Role Separation)
     if (isMasterAdmin) {
-      const isPassValid = verifyServerAdminPasskey(cleanPass);
+      const isPassValid = await verifyServerAdminPasskeyAsync(cleanPass);
       if (!isPassValid) {
         const failureState = await recordFailedAuthAttempt(cleanIdent, clientIp);
         return NextResponse.json(

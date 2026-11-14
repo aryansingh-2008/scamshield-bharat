@@ -103,6 +103,17 @@ export default function AdminPage() {
   const [selectedCitizenForEdit, setSelectedCitizenForEdit] = useState<RegisteredCitizen | null>(null);
   const [deleteConfirmCitizen, setDeleteConfirmCitizen] = useState<RegisteredCitizen | null>(null);
 
+  // Change Admin Passkey State
+  const [currentPasskeyInput, setCurrentPasskeyInput] = useState('');
+  const [newPasskeyInput, setNewPasskeyInput] = useState('');
+  const [confirmPasskeyInput, setConfirmPasskeyInput] = useState('');
+  const [showCurrentPasskey, setShowCurrentPasskey] = useState(false);
+  const [showNewPasskey, setShowNewPasskey] = useState(false);
+  const [showConfirmPasskey, setShowConfirmPasskey] = useState(false);
+  const [passkeyChangeLoading, setPasskeyChangeLoading] = useState(false);
+  const [passkeyChangeError, setPasskeyChangeError] = useState<string | null>(null);
+  const [passkeyChangeSuccess, setPasskeyChangeSuccess] = useState<string | null>(null);
+
   // Form State for Add Member
   const [addName, setAddName] = useState('');
   const [addContact, setAddContact] = useState('');
@@ -379,6 +390,70 @@ export default function AdminPage() {
     }
   };
 
+  const handleChangePasskey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasskeyChangeError(null);
+    setPasskeyChangeSuccess(null);
+
+    const cur = currentPasskeyInput.trim();
+    const next = newPasskeyInput.trim();
+    const conf = confirmPasskeyInput.trim();
+
+    if (!cur) {
+      setPasskeyChangeError('कृपया वर्तमान सुरक्षा पासकी (Current Passkey) दर्ज करें।');
+      return;
+    }
+    if (!next) {
+      setPasskeyChangeError('कृपया नई सुरक्षा पासकी दर्ज करें।');
+      return;
+    }
+    if (next.length < 12) {
+      setPasskeyChangeError('सुरक्षा नियम: नई पासकी कम से कम 12 अक्षरों की होनी चाहिए।');
+      return;
+    }
+    if (/^\d{4,8}$/.test(next)) {
+      setPasskeyChangeError('सुरक्षा नियम: केवल 4-8 अंकों का साधारण PIN पासकी के रूप में अमान्य है।');
+      return;
+    }
+    if (next !== conf) {
+      setPasskeyChangeError('नई पासकी और कन्फर्म पासकी मेल नहीं खा रहे हैं।');
+      return;
+    }
+    if (cur === next) {
+      setPasskeyChangeError('नई पासकी पुरानी पासकी से भिन्न होनी चाहिए।');
+      return;
+    }
+
+    setPasskeyChangeLoading(true);
+    try {
+      const res = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'CHANGE_ADMIN_PASSKEY',
+          currentPasskey: cur,
+          newPasskey: next,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        setPasskeyChangeError(data.error || 'पासकी बदलने में विफल। कृपया वर्तमान पासकी जांचें।');
+        setPasskeyChangeLoading(false);
+        return;
+      }
+
+      setPasskeyChangeSuccess('✅ मुख्य व्यवस्थापक सुरक्षा पासकी सफलतापूर्वक बदल दी गई है! नए लॉगिन के लिए नई पासकी का उपयोग करें।');
+      setCurrentPasskeyInput('');
+      setNewPasskeyInput('');
+      setConfirmPasskeyInput('');
+      showNotification('✅ Master Admin Security Passkey Successfully Updated!');
+    } catch {
+      setPasskeyChangeError('सर्वर से संचार में त्रुटि (Network Error)।');
+    } finally {
+      setPasskeyChangeLoading(false);
+    }
+  };
+
   // Filtered Citizens
   const filteredCitizens = citizens.filter((c) => {
     const q = citizenSearch.toLowerCase().trim();
@@ -583,6 +658,16 @@ export default function AdminPage() {
             </span>
           </div>
 
+          {/* Change Passkey Quick Shortcut Button */}
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-extrabold text-xs transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+            title="Change Security Passkey"
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">पासकी बदलें</span>
+          </button>
+
           <Link
             href="/"
             className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white font-bold text-xs transition-colors border border-white/25 flex items-center gap-1.5"
@@ -729,8 +814,8 @@ export default function AdminPage() {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              <QrCode className="w-4 h-4" />
-              <span>UPI गेटवे सेटिंग्स</span>
+              <Lock className="w-4 h-4" />
+              <span>सुरक्षा व UPI सेटिंग्स</span>
             </button>
           </div>
 
@@ -1351,6 +1436,154 @@ export default function AdminPage() {
                 <p>
                   - केवल यहाँ चीफ एडमिन द्वारा सेट की गई UPI ID ही पूरे प्लेटफ़ॉर्म पर डायनामिक QR कोड और बैंक लेजर में रूट होगी।
                 </p>
+              </div>
+            </div>
+
+            {/* CARD 2: MASTER ADMIN SECURITY PASSKEY SETTINGS */}
+            <div className="p-6 rounded-2xl bg-white border border-slate-200 space-y-4 shadow-sm">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-sm text-slate-900">
+                      Master Admin Security Passkey (सुरक्षा पासकी बदलें)
+                    </h3>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                      👑 Chief Admin Exclusive
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    मुख्य व्यवस्थापक (Chief Admin) अपना लॉगिन पासवर्ड / सुरक्षा पासकी यहाँ से बदल सकते हैं।
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleChangePasskey} className="space-y-4">
+                {/* Current Passkey */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 font-mono">
+                    Current Security Passkey (वर्तमान पासकी):
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPasskey ? 'text' : 'password'}
+                      value={currentPasskeyInput}
+                      onChange={(e) => setCurrentPasskeyInput(e.target.value)}
+                      placeholder="Enter current Master Admin passkey..."
+                      className="w-full px-3 py-2.5 pr-10 text-xs rounded-xl bg-slate-50 border border-slate-300 text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#004A87]/20 focus:border-[#004A87]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPasskey(!showCurrentPasskey)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showCurrentPasskey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New Passkey */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700 font-mono">
+                      New Security Passkey (नया पासकी):
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-mono">Min 12 characters (alphanumeric + symbol)</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showNewPasskey ? 'text' : 'password'}
+                      value={newPasskeyInput}
+                      onChange={(e) => setNewPasskeyInput(e.target.value)}
+                      placeholder="Enter new strong passkey (min 12 chars)..."
+                      className="w-full px-3 py-2.5 pr-10 text-xs rounded-xl bg-slate-50 border border-slate-300 text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#004A87]/20 focus:border-[#004A87]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPasskey(!showNewPasskey)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showNewPasskey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {newPasskeyInput.length > 0 && (
+                    <div className="mt-1.5 flex items-center gap-2 text-[10px] font-mono">
+                      <span className="text-slate-500">Strength:</span>
+                      {newPasskeyInput.length < 12 ? (
+                        <span className="text-red-600 font-bold">Too Short (&lt; 12 chars)</span>
+                      ) : newPasskeyInput.length < 32 ? (
+                        <span className="text-amber-600 font-bold">Good ({newPasskeyInput.length} chars)</span>
+                      ) : (
+                        <span className="text-emerald-600 font-bold">Strong (32+ chars, High Entropy)</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm New Passkey */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 font-mono">
+                    Confirm New Passkey (नए पासकी की पुष्टि करें):
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPasskey ? 'text' : 'password'}
+                      value={confirmPasskeyInput}
+                      onChange={(e) => setConfirmPasskeyInput(e.target.value)}
+                      placeholder="Re-enter new passkey..."
+                      className="w-full px-3 py-2.5 pr-10 text-xs rounded-xl bg-slate-50 border border-slate-300 text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#004A87]/20 focus:border-[#004A87]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPasskey(!showConfirmPasskey)}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showConfirmPasskey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Status Notices */}
+                {passkeyChangeError && (
+                  <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 font-bold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{passkeyChangeError}</span>
+                  </div>
+                )}
+                {passkeyChangeSuccess && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-bold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>{passkeyChangeSuccess}</span>
+                  </div>
+                )}
+
+                {/* Submit Button */}
+                <button
+                  type="submit"
+                  disabled={passkeyChangeLoading}
+                  className="px-5 py-2.5 rounded-xl bg-[#004A87] hover:bg-[#003868] text-white font-extrabold text-xs transition-colors shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {passkeyChangeLoading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Updating Security Passkey...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4" />
+                      <span>Update Passkey (पासकी सुरक्षित करें)</span>
+                    </>
+                  )}
+                </button>
+              </form>
+
+              <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-xs space-y-1 font-mono text-amber-900">
+                <span className="font-bold block">🛡️ सुरक्षा नियम (Security Rules):</span>
+                <p>• केवल मुख्य व्यवस्थापक (Chief Admin) के पास पासकी बदलने का अधिकार है।</p>
+                <p>• केवल 4-8 अंकों का साधारण PIN मान्य नहीं होगा; कम से कम 12 वर्ण अनिवार्य हैं।</p>
+                <p>• पासकी अपडेट होते ही नए लॉगिन के लिए नई पासकी का उपयोग करना होगा।</p>
               </div>
             </div>
           </div>

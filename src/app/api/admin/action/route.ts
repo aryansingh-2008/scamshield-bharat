@@ -5,6 +5,8 @@ import {
 } from '@/lib/server-auth';
 import {
   verifyPrivilegedAdminSession,
+  verifyServerAdminPasskeyAsync,
+  setCustomAdminPasskeyRecordAsync,
 } from '@/lib/server-admin-auth';
 
 /**
@@ -50,8 +52,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Chief-Admin-Only Actions: Changing Beneficiary UPI or Appointing Post
-  const isChiefAdminOnly = action === 'UPDATE_BENEFICIARY_UPI' || action === 'APPOINT_POST' || action === 'DELETE_CITIZEN';
+  // Chief-Admin-Only Actions: Changing Beneficiary UPI, Appointing Post, Deleting Citizen, Changing Admin Passkey
+  const isChiefAdminOnly =
+    action === 'UPDATE_BENEFICIARY_UPI' ||
+    action === 'APPOINT_POST' ||
+    action === 'DELETE_CITIZEN' ||
+    action === 'CHANGE_ADMIN_PASSKEY';
   const requiredPrivilege = isChiefAdminOnly ? 'chief_admin' : 'any_admin';
 
   const privilegeCheck = verifyPrivilegedAdminSession(verification.user, requiredPrivilege);
@@ -60,6 +66,54 @@ export async function POST(req: NextRequest) {
       { success: false, error: privilegeCheck.error, code: privilegeCheck.code },
       { status: 403 }
     );
+  }
+
+  // Handle CHANGE_ADMIN_PASSKEY
+  if (action === 'CHANGE_ADMIN_PASSKEY') {
+    const { currentPasskey, newPasskey } = body;
+    if (!currentPasskey || typeof currentPasskey !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'Current security passkey is required.', code: 'MISSING_CURRENT_PASSKEY' },
+        { status: 400 }
+      );
+    }
+    if (!newPasskey || typeof newPasskey !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'New security passkey is required.', code: 'MISSING_NEW_PASSKEY' },
+        { status: 400 }
+      );
+    }
+
+    const isCurrentValid = await verifyServerAdminPasskeyAsync(currentPasskey);
+    if (!isCurrentValid) {
+      return NextResponse.json(
+        { success: false, error: 'Current security passkey is incorrect. Access denied.', code: 'INVALID_CURRENT_PASSKEY' },
+        { status: 401 }
+      );
+    }
+
+    if (currentPasskey.trim() === newPasskey.trim()) {
+      return NextResponse.json(
+        { success: false, error: 'New passkey must be different from current passkey.', code: 'IDENTICAL_PASSKEY' },
+        { status: 400 }
+      );
+    }
+
+    const updateResult = await setCustomAdminPasskeyRecordAsync(newPasskey.trim(), verification.user.uid);
+    if (!updateResult.success) {
+      return NextResponse.json(
+        { success: false, error: updateResult.error || 'Failed to update passkey.', code: 'PASSKEY_UPDATE_FAILED' },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      action,
+      executedBy: verification.user.uid,
+      role: verification.user.role,
+      message: 'Master Admin security passkey has been successfully updated.',
+    });
   }
 
   // Action execution with authorization audit

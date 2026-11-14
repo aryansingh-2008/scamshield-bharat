@@ -33,6 +33,9 @@ import {
   verifyPrivilegedAdminSession,
   MIN_PASSKEY_LENGTH_LEGACY,
   MIN_PASSKEY_LENGTH_STRONG,
+  setCustomAdminPasskeyRecordAsync,
+  verifyServerAdminPasskeyAsync,
+  resetCustomAdminPasskeyForTesting,
 } from '../src/lib/server-admin-auth';
 
 describe('Privileged Credential & Server-Side Security Test Suite', () => {
@@ -41,6 +44,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
   beforeEach(() => {
     process.env = { ...originalEnv };
     clearLocalAuthCaches();
+    resetCustomAdminPasskeyForTesting();
   });
 
   afterEach(() => {
@@ -530,6 +534,54 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       process.env.UPSTASH_REDIS_REST_URL = 'https://mock.upstash.io';
       process.env.UPSTASH_REDIS_REST_TOKEN = 'mock_token';
       expect(isDistributedStoreConfigured()).toBe(true);
+    });
+  });
+
+  describe('9. Master Admin Dynamic Passkey Rotation & Security', () => {
+    const defaultEnvPasskey = 'Master@Admin#2026!SecuredLiveSystem';
+    const newCustomPasskey = 'NewRotatedAdminPasskey#2026!StrongEntropy';
+
+    beforeEach(() => {
+      process.env.MASTER_ADMIN_PASSKEY = defaultEnvPasskey;
+      resetCustomAdminPasskeyForTesting();
+    });
+
+    it('must verify with default environment passkey before any rotation', async () => {
+      expect(await verifyServerAdminPasskeyAsync(defaultEnvPasskey)).toBe(true);
+      expect(await verifyServerAdminPasskeyAsync('WrongPassword123!')).toBe(false);
+    });
+
+    it('must reject setting a passkey shorter than 12 characters', async () => {
+      const res = await setCustomAdminPasskeyRecordAsync('Short123!', 'SSB-ADMIN-0001');
+      expect(res.success).toBe(false);
+      expect(res.error).toContain('PASSKEY_TOO_SHORT');
+    });
+
+    it('must reject setting a standalone numeric PIN as the admin passkey', async () => {
+      const res = await setCustomAdminPasskeyRecordAsync('12345678', 'SSB-ADMIN-0001');
+      expect(res.success).toBe(false);
+      expect(res.error).toContain('PINs are not allowed');
+    });
+
+    it('must successfully rotate passkey and immediately authenticate with new passkey while invalidating old', async () => {
+      const updateRes = await setCustomAdminPasskeyRecordAsync(newCustomPasskey, 'SSB-ADMIN-0001');
+      expect(updateRes.success).toBe(true);
+
+      // New passkey authenticates successfully
+      expect(await verifyServerAdminPasskeyAsync(newCustomPasskey)).toBe(true);
+
+      // Old passkey is strictly rejected
+      expect(await verifyServerAdminPasskeyAsync(defaultEnvPasskey)).toBe(false);
+    });
+
+    it('must restore fallback to environment passkey after reset', async () => {
+      await setCustomAdminPasskeyRecordAsync(newCustomPasskey, 'SSB-ADMIN-0001');
+      expect(await verifyServerAdminPasskeyAsync(newCustomPasskey)).toBe(true);
+
+      resetCustomAdminPasskeyForTesting();
+
+      expect(await verifyServerAdminPasskeyAsync(defaultEnvPasskey)).toBe(true);
+      expect(await verifyServerAdminPasskeyAsync(newCustomPasskey)).toBe(false);
     });
   });
 });
