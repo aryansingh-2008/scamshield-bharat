@@ -10,15 +10,7 @@ export interface UserProfile {
   highSensitivity?: boolean;
 }
 
-// Master Admin Confidential Passkey & PIN
-export const MASTER_ADMIN_PASSKEY = '[REDACTED_MOCK_PASSKEY]';
-export const MASTER_ADMIN_PIN = '789012';
-
-// President Confidential Passkey & PIN (Arti - Site President)
-export const PRESIDENT_PASSKEY = '[REDACTED_MOCK_PASSKEY]';
-export const PRESIDENT_PIN = '654321';
-
-// Designated Site President Account
+// Designated Site President Account Public Metadata
 export const PRESIDENT_USER: UserProfile = {
   uid: 'SSB-PRESIDENT-0001',
   name: 'Arti (President)',
@@ -31,7 +23,7 @@ export const PRESIDENT_USER: UserProfile = {
   highSensitivity: true,
 };
 
-// Designated Master Admin Account
+// Designated Master Admin Account Public Metadata
 export const MASTER_ADMIN_USER: UserProfile = {
   uid: 'SSB-ADMIN-0001',
   name: 'Aryan Singh (Chief Admin)',
@@ -44,24 +36,7 @@ export const MASTER_ADMIN_USER: UserProfile = {
   highSensitivity: true,
 };
 
-export const verifyAdminPasskey = (input: string): boolean => {
-  const clean = input.trim();
-  return (
-    clean === MASTER_ADMIN_PASSKEY ||
-    clean === MASTER_ADMIN_PIN ||
-    clean === PRESIDENT_PASSKEY ||
-    clean === PRESIDENT_PIN
-  );
-};
-
-export const getAdminUserForPasskey = (input: string): UserProfile => {
-  const clean = input.trim();
-  if (clean === PRESIDENT_PASSKEY || clean === PRESIDENT_PIN) {
-    return PRESIDENT_USER;
-  }
-  return MASTER_ADMIN_USER;
-};
-
+// Non-sensitive Demo Personas for Citizen & Investigator Evaluation
 export const DEMO_USERS = {
   investor: {
     uid: 'SSB-2026-784210',

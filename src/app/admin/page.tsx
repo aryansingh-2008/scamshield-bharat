@@ -40,7 +40,7 @@ import {
   AlertTriangle,
   UserCheck,
 } from 'lucide-react';
-import { useAuth, MASTER_ADMIN_USER, verifyAdminPasskey } from '@/lib/auth-context';
+import { useAuth, MASTER_ADMIN_USER } from '@/lib/auth-context';
 import {
   RegisteredCitizen,
   UtrTransaction,
@@ -136,40 +136,54 @@ export default function AdminPage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const isAuthedSession = sessionStorage.getItem('scamshield_admin_authenticated') === 'true';
-      if (user?.role === 'admin' && isAuthedSession) {
-        setIsAuthenticated(true);
-        reloadData();
+      if (isAuthedSession) {
+        // Cryptographically verify active admin session with server
+        fetch('/api/auth/session')
+          .then((res) => res.json())
+          .then((data) => {
+            if (data?.authenticated && data?.user?.role === 'admin') {
+              setIsAuthenticated(true);
+              reloadData();
+            } else {
+              setIsAuthenticated(false);
+              sessionStorage.removeItem('scamshield_admin_authenticated');
+            }
+          })
+          .catch(() => {
+            setIsAuthenticated(false);
+          })
+          .finally(() => {
+            setCheckingAuth(false);
+          });
       } else {
         setIsAuthenticated(false);
+        setCheckingAuth(false);
       }
-      setCheckingAuth(false);
     }
   }, [user]);
 
-  const handleUnlockAdmin = (e: React.FormEvent) => {
+  const handleUnlockAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasskeyError(null);
     setIsVerifying(true);
 
-    setTimeout(() => {
-      const clean = passkeyInput.trim();
-      if (!clean) {
-        setPasskeyError('Please enter the Master Admin Security Passkey.');
-        setIsVerifying(false);
-        return;
-      }
-
-      const ok = loginAsAdmin(clean);
-      if (!ok) {
-        setPasskeyError('Access Denied: Invalid Security Passkey. Unauthorized entry attempt recorded.');
-        setIsVerifying(false);
-        return;
-      }
-
-      setIsAuthenticated(true);
+    const clean = passkeyInput.trim();
+    if (!clean) {
+      setPasskeyError('Please enter the Master Admin Security Passkey.');
       setIsVerifying(false);
-      reloadData();
-    }, 400);
+      return;
+    }
+
+    const res = await loginAsAdmin(clean);
+    if (!res.success) {
+      setPasskeyError(res.error || 'Access Denied: Invalid Security Passkey. Unauthorized entry attempt recorded.');
+      setIsVerifying(false);
+      return;
+    }
+
+    setIsAuthenticated(true);
+    setIsVerifying(false);
+    reloadData();
   };
 
   const handleLockAdmin = () => {

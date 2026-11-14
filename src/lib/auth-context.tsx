@@ -5,27 +5,15 @@ import { generateCitizenId, syncCurrentUserToRegistry, getAllCitizens } from './
 
 import {
   UserProfile,
-  MASTER_ADMIN_PASSKEY,
-  MASTER_ADMIN_PIN,
-  PRESIDENT_PASSKEY,
-  PRESIDENT_PIN,
   PRESIDENT_USER,
   MASTER_ADMIN_USER,
-  verifyAdminPasskey,
-  getAdminUserForPasskey,
   DEMO_USERS,
 } from './auth-constants';
 
 export type { UserProfile };
 export {
-  MASTER_ADMIN_PASSKEY,
-  MASTER_ADMIN_PIN,
-  PRESIDENT_PASSKEY,
-  PRESIDENT_PIN,
   PRESIDENT_USER,
   MASTER_ADMIN_USER,
-  verifyAdminPasskey,
-  getAdminUserForPasskey,
   DEMO_USERS,
 };
 
@@ -41,7 +29,7 @@ interface AuthContextType {
   login: (profile: UserProfile) => void;
   updateUser: (updated: Partial<UserProfile>) => void;
   loginAsDemo: (type: 'investor' | 'investigator') => void;
-  loginAsAdmin: (passkey?: string) => boolean;
+  loginAsAdmin: (passkey: string) => Promise<{ success: boolean; error?: string }>;
   skipLogin: () => void;
   logout: () => void;
   resetAuth: () => void;
@@ -127,6 +115,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const savedUser = localStorage.getItem(STORAGE_KEY_USER);
       if (savedUser) {
         const parsed: UserProfile = JSON.parse(savedUser);
+        // Security guardrail: Never trust privileged 'admin' role from client localStorage without server verification
+        if (parsed.role === 'admin') {
+          parsed.role = 'guest';
+        }
         // Ensure every user has a unique Citizen Safety ID (UID)
         if (!parsed.uid) {
           parsed.uid = generateCitizenId();
@@ -139,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const allCitizens = getAllCitizens();
         const myRecord = allCitizens.find((c) => c.uid === parsed.uid);
 
-        if (parsed.role === 'admin' || (myRecord && myRecord.isUnlimited)) {
+        if (myRecord && myRecord.isUnlimited) {
           setIsUnlimited(true);
         } else {
           setIsUnlimited(false);
@@ -182,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const parsed: UserProfile = JSON.parse(savedUser);
         const allCitizens = getAllCitizens();
         const myRecord = allCitizens.find((c) => c.uid === parsed.uid);
-        if (parsed.role === 'admin' || (myRecord && myRecord.isUnlimited)) {
+        if (myRecord && myRecord.isUnlimited) {
           setIsUnlimited(true);
         } else {
           setIsUnlimited(false);
@@ -331,24 +323,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login(demoProfile);
   };
 
-  const loginAsAdmin = (passkey?: string): boolean => {
-    if (passkey !== undefined && !verifyAdminPasskey(passkey)) {
-      return false;
+  const loginAsAdmin = async (passkey: string): Promise<{ success: boolean; error?: string }> => {
+    const clean = (passkey || '').trim();
+    if (!clean) {
+      return { success: false, error: 'Please enter a security passkey.' };
     }
-    const adminUser = passkey ? getAdminUserForPasskey(passkey) : MASTER_ADMIN_USER;
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('scamshield_admin_authenticated', 'true');
-      fetch('/api/auth/login', {
+
+    try {
+      const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          identifier: adminUser.emailOrPhone,
-          password: passkey || (adminUser.uid === PRESIDENT_USER.uid ? PRESIDENT_PASSKEY : MASTER_ADMIN_PASSKEY),
+          identifier: 'admin',
+          password: clean,
         }),
-      }).catch(() => {});
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success && data.user) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('scamshield_admin_authenticated', 'true');
+        }
+        login(data.user);
+        return { success: true };
+      }
+
+      return {
+        success: false,
+        error: data.error || 'Access Denied: Invalid Security Passkey. Unauthorized entry attempt recorded.',
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: 'Network error communicating with authentication service.',
+      };
     }
-    login(adminUser);
-    return true;
   };
 
   const skipLogin = () => {

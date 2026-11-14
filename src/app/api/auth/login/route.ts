@@ -7,13 +7,13 @@ import {
 import {
   MASTER_ADMIN_USER,
   PRESIDENT_USER,
-  MASTER_ADMIN_PASSKEY,
-  MASTER_ADMIN_PIN,
-  PRESIDENT_PASSKEY,
-  PRESIDENT_PIN,
   DEMO_USERS,
   generateCitizenId,
 } from '@/lib/auth-constants';
+import {
+  verifyServerPresidentCredentials,
+  verifyServerAdminCredentials,
+} from '@/lib/server-admin-auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const isPassValid = cleanPass === PRESIDENT_PASSKEY || cleanPass === PRESIDENT_PIN;
+      const isPassValid = verifyServerPresidentCredentials(cleanPass);
       if (!isPassValid) {
         return NextResponse.json(
           { error: 'Access Denied: Invalid President Security Passkey or PIN.' },
@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const isPassValid = cleanPass === MASTER_ADMIN_PASSKEY || cleanPass === MASTER_ADMIN_PIN;
+      const isPassValid = verifyServerAdminCredentials(cleanPass);
       if (!isPassValid) {
         return NextResponse.json(
           { error: 'Access Denied: Invalid Master Admin Security Passkey.' },

@@ -20,9 +20,6 @@ import {
   useAuth,
   MASTER_ADMIN_USER,
   PRESIDENT_USER,
-  PRESIDENT_PASSKEY,
-  PRESIDENT_PIN,
-  verifyAdminPasskey,
 } from '@/lib/auth-context';
 
 function LoginContent() {

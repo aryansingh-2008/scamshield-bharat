@@ -9,9 +9,12 @@ import {
 import {
   MASTER_ADMIN_USER,
   PRESIDENT_USER,
-  MASTER_ADMIN_PASSKEY,
-  PRESIDENT_PASSKEY,
+  UserProfile,
 } from '@/lib/auth-constants';
+import {
+  verifyServerPresidentCredentials,
+  verifyServerAdminCredentials,
+} from '@/lib/server-admin-auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -31,7 +34,36 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanSecret = (passkeySecret || '').trim();
-    const isPrivileged = cleanSecret === PRESIDENT_PASSKEY || cleanSecret === MASTER_ADMIN_PASSKEY || userType === 'president' || userType === 'admin';
+    const claimsPresident = userType === 'president';
+    const claimsAdmin = userType === 'admin';
+    const hasSecret = Boolean(cleanSecret);
+
+    // Verify privileged claims strictly on the server
+    let privilegedUser: UserProfile | null = null;
+
+    if (claimsPresident || claimsAdmin || hasSecret) {
+      if (claimsPresident) {
+        if (!verifyServerPresidentCredentials(cleanSecret)) {
+          return NextResponse.json({ error: 'Access Denied: Invalid President Security Passkey.' }, { status: 401 });
+        }
+        privilegedUser = PRESIDENT_USER;
+      } else if (claimsAdmin) {
+        if (!verifyServerAdminCredentials(cleanSecret)) {
+          return NextResponse.json({ error: 'Access Denied: Invalid Master Admin Security Passkey.' }, { status: 401 });
+        }
+        privilegedUser = MASTER_ADMIN_USER;
+      } else if (hasSecret) {
+        if (verifyServerPresidentCredentials(cleanSecret)) {
+          privilegedUser = PRESIDENT_USER;
+        } else if (verifyServerAdminCredentials(cleanSecret)) {
+          privilegedUser = MASTER_ADMIN_USER;
+        } else {
+          return NextResponse.json({ error: 'Access Denied: Unrecognized Security Passkey.' }, { status: 401 });
+        }
+      }
+    }
+
+    const isPrivileged = privilegedUser !== null;
 
     // Atomic Server-Side Challenge Consumption (Guaranteed Single-Use)
     const consumption = await consumePasskeyChallenge(challenge, isPrivileged);
@@ -50,21 +82,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Determine user profile based on passkey secret or WebAuthn assertion
-    let authorizedUser = null;
+    // Determine user profile based on server verification
+    let authorizedUser: UserProfile;
 
-    if (cleanSecret === PRESIDENT_PASSKEY || userType === 'president') {
-      if (cleanSecret && cleanSecret !== PRESIDENT_PASSKEY) {
-        return NextResponse.json({ error: 'Unauthorized President passkey' }, { status: 401 });
-      }
-      authorizedUser = PRESIDENT_USER;
-    } else if (cleanSecret === MASTER_ADMIN_PASSKEY || userType === 'admin') {
-      if (cleanSecret && cleanSecret !== MASTER_ADMIN_PASSKEY) {
-        return NextResponse.json({ error: 'Unauthorized Admin passkey' }, { status: 401 });
-      }
-      authorizedUser = MASTER_ADMIN_USER;
+    if (privilegedUser) {
+      authorizedUser = privilegedUser;
     } else {
-      // General passkey verified citizen
+      // General passkey verified citizen - cannot be escalated to admin without server credentials
       authorizedUser = {
         uid: `SSB-PASSKEY-${Date.now().toString(36).toUpperCase()}`,
         name: 'Verified Passkey Holder',
