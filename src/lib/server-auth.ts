@@ -259,19 +259,23 @@ export async function consumeDistributedChallenge(challenge: string): Promise<bo
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 1500);
 
-    const res = await fetch(`${url}/set/scamshield:challenge:${challenge}/consumed/EX/300/NX`, {
+    const res = await fetch(`${url}/pipeline`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify([
+        ['SET', `scamshield:challenge:${challenge}`, 'consumed', 'EX', 300, 'NX'],
+      ]),
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
     if (res.ok) {
       const data = await res.json();
-      // Upstash REST returns { result: "OK" } if key was set, or { result: null } if already existed
-      return data?.result === 'OK';
+      // Upstash REST returns [{ result: "OK" }] if key was set, or [{ result: null }] if already existed
+      return data?.[0]?.result === 'OK';
     }
   } catch {
     // Redis connection error
@@ -337,7 +341,7 @@ export async function consumePasskeyChallenge(
 export function isDistributedStoreConfigured(): boolean {
   const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  return Boolean(url && token);
+  return Boolean(url && url.trim().length > 0 && token && token.trim().length > 0);
 }
 
 /**
