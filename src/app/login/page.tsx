@@ -156,85 +156,41 @@ function LoginContent() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const cleanIdent = identifier.toLowerCase().trim();
-      const cleanPass = password.trim();
-
-      // 1. Site President Executive Authentication (Arti)
-      const isPresident =
-        cleanIdent === 'arti' ||
-        cleanIdent === 'president' ||
-        cleanIdent === 'arti@scamshieldbharat.live' ||
-        cleanIdent === 'president@scamshieldbharat.live' ||
-        cleanIdent === 'ssb-president-0001';
-
-      if (isPresident) {
-        const isValidPass =
-          cleanPass === PRESIDENT_PASSKEY ||
-          cleanPass === PRESIDENT_PIN ||
-          verifyAdminPasskey(cleanPass);
-
-        if (!isValidPass) {
-          setAuthError(
-            isHindi
-              ? 'अमान्य प्रेसिडेंट सुरक्षा पासवर्ड। केवल अधिकृत प्रेसिडेंट ही लॉगिन कर सकते हैं।'
-              : 'Access Denied: Invalid President Security Passkey or PIN.'
-          );
-          setIsSubmitting(false);
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: identifier.trim(),
+        password: password.trim(),
+        name: signinName.trim(),
+      }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, status: res.status, data })))
+      .then(({ ok, data }) => {
+        setIsSubmitting(false);
+        if (!ok) {
+          setAuthError(data.error || (isHindi ? 'अमान्य क्रेडेंशियल्स।' : 'Authentication failed. Please check your credentials.'));
           refreshCaptcha();
           return;
         }
 
-        login(PRESIDENT_USER);
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('scamshield_admin_authenticated', 'true');
+        const authenticatedUser = data.user;
+        login(authenticatedUser);
+
+        if (authenticatedUser.role === 'admin') {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('scamshield_admin_authenticated', 'true');
+          }
+          router.push(redirectPath === '/' ? '/admin' : redirectPath);
+        } else {
+          router.push(redirectPath);
         }
+      })
+      .catch(() => {
         setIsSubmitting(false);
-        router.push(redirectPath === '/' ? '/admin' : redirectPath);
-        return;
-      }
-
-      // 2. Chief System Administrator Authentication (Aryan Singh)
-      const isMasterAdmin =
-        cleanIdent === 'admin' ||
-        cleanIdent === 'admin@scamshieldbharat.live' ||
-        cleanIdent === 'ssb-admin-0001';
-
-      if (isMasterAdmin) {
-        if (!verifyAdminPasskey(cleanPass)) {
-          setAuthError(
-            isHindi
-              ? 'अमान्य मास्टर एडमिन सुरक्षा पासवर्ड। केवल अधिकृत एडमिन ही लॉगिन कर सकते हैं।'
-              : 'Access Denied: Invalid Master Admin Security Passkey.'
-          );
-          setIsSubmitting(false);
-          refreshCaptcha();
-          return;
-        }
-
-        login(MASTER_ADMIN_USER);
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('scamshield_admin_authenticated', 'true');
-        }
-        setIsSubmitting(false);
-        router.push('/admin');
-        return;
-      }
-
-      // 3. Citizen / Investor / Investigator Member Login
-      login({
-        name: signinName.trim() || (identifier.includes('@')
-          ? identifier.split('@')[0]
-          : `Citizen +91 ***${identifier.replace(/\D/g, '').slice(-4)}`),
-        emailOrPhone: identifier,
-        role: 'investor',
-        designation: 'Verified Account Holder',
-        organization: 'ScamShield Bharat',
-        verified: true,
+        setAuthError(isHindi ? 'सर्वर से संपर्क करने में त्रुटि।' : 'Connection error during authentication.');
+        refreshCaptcha();
       });
-      setIsSubmitting(false);
-      router.push(redirectPath);
-    }, 500);
   };
 
   // ========================================================
@@ -289,18 +245,32 @@ function LoginContent() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      login({
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: signupContact.trim(),
+        password: signupPassword.trim(),
         name: signupName.trim(),
-        emailOrPhone: signupContact.trim(),
-        role: 'investor',
-        designation: 'Verified Citizen Member',
-        organization: 'ScamShield Bharat',
-        verified: true,
+      }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, status: res.status, data })))
+      .then(({ ok, data }) => {
+        setIsSubmitting(false);
+        if (!ok) {
+          setAuthError(data.error || (isHindi ? 'पंजीकरण विफल।' : 'Registration failed.'));
+          refreshCaptcha();
+          return;
+        }
+
+        login(data.user);
+        router.push(redirectPath);
+      })
+      .catch(() => {
+        setIsSubmitting(false);
+        setAuthError(isHindi ? 'सर्वर से संपर्क करने में त्रुटि।' : 'Connection error during registration.');
+        refreshCaptcha();
       });
-      setIsSubmitting(false);
-      router.push(redirectPath);
-    }, 500);
   };
 
   return (

@@ -128,13 +128,11 @@ export default function HomePage() {
 
     try {
       const headers = new Headers(requestOptions.headers || {});
-      if (user?.uid) {
-        headers.set('x-user-uid', user.uid);
-      }
 
       const response = await fetch(requestOptions.url, {
         method: 'POST',
         headers,
+        credentials: 'same-origin',
         body: requestOptions.body,
       });
 
