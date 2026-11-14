@@ -81,9 +81,9 @@ export default function Header({
         )}
       </div>
 
-      <div className="max-w-[1340px] mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
+      <div className="max-w-[1340px] mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative gap-2">
         {/* Left Brand Identity */}
-        <div className="relative flex items-center h-full min-w-0 pr-1 sm:pr-0">
+        <div className="relative flex items-center h-full min-w-0 flex-1 sm:flex-initial pr-1 sm:pr-0">
           {/* Angled background accent shape */}
           <div
             className="hidden sm:block absolute inset-y-0 -left-6 w-[calc(100%+38px)] bg-[#EEF4F9] border-r border-slate-200/80 -z-10"
@@ -97,7 +97,7 @@ export default function Header({
               setIsMobileMenuOpen(false);
               onNavigateHome();
             }}
-            className="flex items-center gap-2 sm:gap-3 text-left group focus:outline-none focus:ring-2 focus:ring-[#004A87] rounded-lg p-1 min-w-0"
+            className="flex items-center gap-2 sm:gap-3 text-left group focus:outline-none focus:ring-2 focus:ring-[#004A87] rounded-lg p-0.5 sm:p-1 min-w-0"
             aria-label="ScamShield Bharat Home"
           >
             {/* Solid Deep Institutional Blue Shield Block */}
@@ -221,7 +221,7 @@ export default function Header({
         </nav>
 
         {/* Action Controls & Navigation */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
           {/* Quick Demo Trigger in Header */}
           {onTriggerDemo && currentView === 'home' && (
             <button
@@ -237,7 +237,7 @@ export default function Header({
           {/* Bilingual Language Switcher */}
           <button
             onClick={onToggleLang}
-            className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-300 transition-colors focus:ring-2 focus:ring-[#004A87] shrink-0 shadow-2xs"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-300 transition-colors focus:ring-2 focus:ring-[#004A87] shrink-0 shadow-2xs"
             aria-label="Toggle language between English and Hindi"
           >
             <span
@@ -265,7 +265,7 @@ export default function Header({
           {user && onOpenRecharge ? (
             <button
               onClick={onOpenRecharge}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-2xs ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-2xs shrink-0 ${
                 isUnlimited
                   ? 'bg-amber-50/90 border-amber-300 text-amber-900 hover:bg-amber-100'
                   : credits > 2
@@ -274,34 +274,40 @@ export default function Header({
               }`}
               title={isHindi ? 'सुरक्षा क्रेडिट्स बैलेंस व रीचार्ज' : 'Safety Credits Balance & Recharge'}
             >
-              <Coins className="w-3.5 h-3.5 text-amber-600" />
+              <Coins className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span>
                 {isUnlimited
                   ? '👑 Pro'
-                  : `${credits} ${isHindi ? 'क्रेडिट' : 'Credits'}`}
+                  : (
+                    <>
+                      <span className="font-mono">{credits}</span>
+                      <span className="hidden sm:inline"> {isHindi ? 'क्रेडिट' : 'Credits'}</span>
+                    </>
+                  )}
               </span>
-              <span className="text-[10px] px-1 py-0.2 bg-amber-200/80 text-amber-900 rounded font-extrabold hidden sm:inline">
+              <span className="text-[10px] px-1 py-0.2 bg-amber-200/80 text-amber-900 rounded font-extrabold hidden md:inline">
                 {isHindi ? 'रीचार्ज (₹9)' : 'Top-up'}
               </span>
             </button>
           ) : (
             <div
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg border bg-slate-50 border-slate-200 text-slate-700 shadow-2xs"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-bold rounded-lg border bg-slate-50 border-slate-200 text-slate-700 shadow-2xs shrink-0"
               title={isHindi ? 'मुफ्त ट्रायल स्कैन (अधिकतम 5 प्रति डिवाइस/आईपी)' : 'Free Trial Scans (5 Max per device/IP)'}
             >
               <span className="text-xs">🪙</span>
               <span>
-                {credits} {isHindi ? 'मुफ्त स्कैन' : 'Free Scans'}
+                <span className="font-mono">{credits}</span>
+                <span className="hidden sm:inline"> {isHindi ? 'मुफ्त स्कैन' : 'Free Scans'}</span>
               </span>
             </div>
           )}
 
           {/* Authentication Badge / Login Button */}
           {user ? (
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <button
                 onClick={onOpenProfile}
-                className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs rounded-lg bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-[#004A87] shadow-2xs transition-colors cursor-pointer group"
+                className="flex items-center gap-1.5 px-1.5 sm:px-2.5 py-1 text-xs rounded-lg bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-[#004A87] shadow-2xs transition-colors cursor-pointer group shrink-0"
                 title={isHindi ? 'मेरी प्रोफ़ाइल देखें' : 'View My Profile'}
               >
                 <div className="w-5 h-5 rounded-full bg-[#004A87] text-white flex items-center justify-center text-[10px] font-bold shrink-0 group-hover:scale-105 transition-transform">
@@ -321,7 +327,7 @@ export default function Header({
               </button>
               <button
                 onClick={logout}
-                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                className="hidden sm:flex p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
                 title={isHindi ? 'लॉगआउट करें' : 'Sign Out'}
                 aria-label="Sign Out"
               >
@@ -331,7 +337,7 @@ export default function Header({
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-[#004A87] hover:bg-[#003866] transition-colors shadow-2xs shrink-0"
+              className="hidden sm:flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-[#004A87] hover:bg-[#003866] transition-colors shadow-2xs shrink-0"
             >
               <LogIn className="w-3.5 h-3.5" />
               <span>{isHindi ? 'लॉगिन' : 'Sign In'}</span>
@@ -341,7 +347,7 @@ export default function Header({
           {/* Mobile Hamburger Toggle Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors"
+            className="lg:hidden p-1.5 sm:p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors shrink-0"
             aria-label="Toggle mobile navigation menu"
           >
             {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
