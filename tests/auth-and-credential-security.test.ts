@@ -19,6 +19,7 @@ import {
   recordFailedAuthAttempt,
   checkAccountLockout,
   clearFailedAuthAttempts,
+  clearLocalAuthCaches,
 } from '../src/lib/server-auth';
 import {
   verifyServerPresidentPasskey,
@@ -38,6 +39,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
 
   beforeEach(() => {
     process.env = { ...originalEnv };
+    clearLocalAuthCaches();
   });
 
   afterEach(() => {
@@ -130,30 +132,33 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       expect(presPinAuth.code).toBe('SOLE_PIN_DISALLOWED');
     });
 
-    it('must throttle brute-force attempts and enforce account lockout after 5 failures', async () => {
-      const testIdent = `test-target-${Date.now()}`;
-      await clearFailedAuthAttempts(testIdent);
+    it('must enforce identity-aware throttling: attacker IP locked out without locking legitimate IP', async () => {
+      const targetIdent = 'ssb-admin-0001';
+      const attackerIp = '198.51.100.99';
+      const legitimateIp = '203.0.113.88';
 
-      // Attempts 1 to 4 should not lock
-      for (let i = 1; i <= 4; i++) {
-        const attempt = await recordFailedAuthAttempt(testIdent);
-        expect(attempt.locked).toBe(false);
-        expect(attempt.attempts).toBe(i);
+      await clearFailedAuthAttempts(targetIdent, attackerIp);
+      await clearFailedAuthAttempts(targetIdent, legitimateIp);
+
+      // Attacker attempts 5 wrong passwords from attackerIp
+      for (let i = 1; i <= 5; i++) {
+        const attempt = await recordFailedAuthAttempt(targetIdent, attackerIp);
+        if (i === 5) {
+          expect(attempt.locked).toBe(true);
+        }
       }
 
-      // 5th attempt triggers lockout
-      const fifthAttempt = await recordFailedAuthAttempt(testIdent);
-      expect(fifthAttempt.locked).toBe(true);
-      expect(fifthAttempt.retryAfterSeconds).toBeGreaterThan(0);
+      // Attacker IP is locked out
+      const attackerLockout = await checkAccountLockout(targetIdent, attackerIp);
+      expect(attackerLockout.locked).toBe(true);
+      expect(attackerLockout.scope).toBe('origin');
 
-      // Lockout check confirms account is locked
-      const lockoutState = await checkAccountLockout(testIdent);
-      expect(lockoutState.locked).toBe(true);
+      // Legitimate user on legitimateIp is NOT locked out
+      const legitimateLockout = await checkAccountLockout(targetIdent, legitimateIp);
+      expect(legitimateLockout.locked).toBe(false);
 
-      // Clear attempts resets the lockout
-      await clearFailedAuthAttempts(testIdent);
-      const afterClear = await checkAccountLockout(testIdent);
-      expect(afterClear.locked).toBe(false);
+      // Successful login from legitimate user resets account failures
+      await clearFailedAuthAttempts(targetIdent, legitimateIp);
     });
   });
 
@@ -175,7 +180,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       expect(auth.code).toBe('INVALID_PRESIDENT_CREDENTIAL');
     });
 
-    it('must independently authorize server administrative sessions', () => {
+    it('must independently authorize server administrative sessions and gate Chief-Admin-Only actions', () => {
       // 1. Missing session
       expect(verifyPrivilegedAdminSession(null).authorized).toBe(false);
 
@@ -207,7 +212,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       expect(forgedCheck.authorized).toBe(false);
       expect(forgedCheck.code).toBe('INVALID_ADMIN_IDENTITY');
 
-      // 4. Valid Chief Admin Session
+      // 4. Chief Admin Session has full authority
       const chiefAdminSession = {
         uid: authConstants.MASTER_ADMIN_USER.uid,
         name: authConstants.MASTER_ADMIN_USER.name,
@@ -221,7 +226,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       expect(verifyPrivilegedAdminSession(chiefAdminSession, 'chief_admin').authorized).toBe(true);
       expect(verifyPrivilegedAdminSession(chiefAdminSession, 'president').authorized).toBe(false);
 
-      // 5. Valid President Session
+      // 5. President Session cannot execute Chief-Admin-Only actions
       const presidentSession = {
         uid: authConstants.PRESIDENT_USER.uid,
         name: authConstants.PRESIDENT_USER.name,
@@ -234,10 +239,11 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       expect(verifyPrivilegedAdminSession(presidentSession, 'any_admin').authorized).toBe(true);
       expect(verifyPrivilegedAdminSession(presidentSession, 'president').authorized).toBe(true);
       expect(verifyPrivilegedAdminSession(presidentSession, 'chief_admin').authorized).toBe(false);
+      expect(verifyPrivilegedAdminSession(presidentSession, 'chief_admin').code).toBe('REQUIRES_CHIEF_ADMIN');
     });
   });
 
-  describe('5. Session Security & Lifetimes', () => {
+  describe('5. Session Security, Lifetimes & Distributed Revocation', () => {
     it('must enforce a strict 2-hour TTL for administrative sessions and 7 days for citizen sessions', () => {
       const adminToken = signSessionToken({
         uid: authConstants.MASTER_ADMIN_USER.uid,
@@ -265,7 +271,8 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       expect(citizenDuration).toBe(CITIZEN_SESSION_TTL_SECONDS); // 604800 seconds (7 days)
     });
 
-    it('must invalidate sessions upon logout revocation', async () => {
+    it('must invalidate sessions upon logout revocation across simulated instances', async () => {
+      // Simulate Instance A: User logs in and receives token
       const token = signSessionToken({
         uid: authConstants.MASTER_ADMIN_USER.uid,
         name: authConstants.MASTER_ADMIN_USER.name,
@@ -274,13 +281,12 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
         verified: true,
       });
 
-      // Before logout: valid
       expect(verifySessionToken(token).valid).toBe(true);
 
-      // Revoke session on logout
+      // Simulate Instance B: User calls logout -> revokes session
       await revokeDistributedSession(token);
 
-      // After logout: revoked
+      // Simulate Instance C: Replay of token is strictly rejected
       const resSync = verifySessionToken(token);
       expect(resSync.valid).toBe(false);
       expect(resSync.error).toBe('REVOKED_TOKEN');
@@ -288,6 +294,38 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       const resAsync = await verifySessionTokenAsync(token);
       expect(resAsync.valid).toBe(false);
       expect(resAsync.error).toBe('REVOKED_TOKEN');
+    });
+
+    it('must fail closed for privileged session when REQUIRE_DISTRIBUTED_AUTH=true and Redis is offline', async () => {
+      process.env.REQUIRE_DISTRIBUTED_AUTH = 'true';
+      delete process.env.UPSTASH_REDIS_REST_URL;
+      delete process.env.UPSTASH_REDIS_REST_TOKEN;
+
+      const adminToken = signSessionToken({
+        uid: authConstants.MASTER_ADMIN_USER.uid,
+        name: authConstants.MASTER_ADMIN_USER.name,
+        emailOrPhone: authConstants.MASTER_ADMIN_USER.emailOrPhone,
+        role: 'admin',
+        verified: true,
+      });
+
+      const citizenToken = signSessionToken({
+        uid: 'SSB-2026-CITIZEN',
+        name: 'Normal Citizen',
+        emailOrPhone: 'citizen@example.com',
+        role: 'investor',
+        verified: true,
+      });
+
+      // Privileged admin session fails closed with DISTRIBUTED_STORE_REQUIRED
+      const adminRes = await verifySessionTokenAsync(adminToken);
+      expect(adminRes.valid).toBe(false);
+      expect(adminRes.error).toBe('DISTRIBUTED_STORE_REQUIRED');
+
+      // Citizen session gracefully validates locally without failure
+      const citizenRes = await verifySessionTokenAsync(citizenToken);
+      expect(citizenRes.valid).toBe(true);
+      expect(citizenRes.user?.role).toBe('investor');
     });
 
     it('must reject tampered token signatures', () => {

@@ -27,6 +27,9 @@ export async function POST(req: NextRequest) {
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
     const isSecureCookie = process.env.NODE_ENV === 'production' && !isLocalhost;
 
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const clientIp = forwardedFor ? forwardedFor.split(',')[0].trim() : '127.0.0.1';
+
     const body = await req.json();
     const { identifier, password, isDemo, demoType } = body;
 
@@ -99,14 +102,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Enforcement B: Account lockout check across serverless instances
-      const lockout = await checkAccountLockout(cleanIdent);
+      // Enforcement B: Account lockout check across serverless instances (identity & origin aware)
+      const lockout = await checkAccountLockout(cleanIdent, clientIp);
       if (lockout.locked) {
         return NextResponse.json(
           {
             error: `Account temporarily locked due to excessive failed attempts. Please try again after ${Math.ceil(lockout.retryAfterSeconds / 60)} minutes.`,
             code: 'ACCOUNT_LOCKED',
             retryAfter: lockout.retryAfterSeconds,
+            scope: lockout.scope,
           },
           {
             status: 423,
@@ -119,7 +123,7 @@ export async function POST(req: NextRequest) {
 
       // Enforcement C: Reject numeric PIN as the sole privileged factor
       if (isPinOnlyCandidate(cleanPass)) {
-        await recordFailedAuthAttempt(cleanIdent);
+        await recordFailedAuthAttempt(cleanIdent, clientIp);
         return NextResponse.json(
           {
             error: 'Access Denied: A numeric PIN cannot be used as the sole administrative authentication factor. Master Security Passkey is required.',
@@ -134,7 +138,7 @@ export async function POST(req: NextRequest) {
     if (isPresident) {
       const isPassValid = verifyServerPresidentPasskey(cleanPass);
       if (!isPassValid) {
-        const failureState = await recordFailedAuthAttempt(cleanIdent);
+        const failureState = await recordFailedAuthAttempt(cleanIdent, clientIp);
         return NextResponse.json(
           {
             error: failureState.locked
@@ -146,7 +150,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await clearFailedAuthAttempts(cleanIdent);
+      await clearFailedAuthAttempts(cleanIdent, clientIp);
 
       const token = signSessionToken({
         uid: PRESIDENT_USER.uid!,
@@ -180,7 +184,7 @@ export async function POST(req: NextRequest) {
     if (isMasterAdmin) {
       const isPassValid = verifyServerAdminPasskey(cleanPass);
       if (!isPassValid) {
-        const failureState = await recordFailedAuthAttempt(cleanIdent);
+        const failureState = await recordFailedAuthAttempt(cleanIdent, clientIp);
         return NextResponse.json(
           {
             error: failureState.locked
@@ -192,7 +196,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      await clearFailedAuthAttempts(cleanIdent);
+      await clearFailedAuthAttempts(cleanIdent, clientIp);
 
       const token = signSessionToken({
         uid: MASTER_ADMIN_USER.uid!,

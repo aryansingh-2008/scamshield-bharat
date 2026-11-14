@@ -16,6 +16,7 @@ import {
  * Security Controls:
  * - Does NOT trust client UI state or localStorage.
  * - HTTP 401 Unauthorized for missing/expired/invalid sessions.
+ * - HTTP 503 Fail-Closed if distributed store check is unavailable and REQUIRE_DISTRIBUTED_AUTH=true.
  * - HTTP 403 Forbidden for non-privileged authenticated users.
  * - Confirms role separation (Chief Admin vs President).
  */
@@ -26,16 +27,23 @@ export async function GET(req: NextRequest) {
 
   if (!token) {
     return NextResponse.json(
-      { authorized: false, error: 'Authentication required. No active session.' },
+      { authorized: false, error: 'Authentication required. No active session.', code: 'UNAUTHENTICATED' },
       { status: 401 }
     );
   }
 
   const verification = await verifySessionTokenAsync(token);
   if (!verification.valid || !verification.user) {
+    const isDistributedRequired = verification.error === 'DISTRIBUTED_STORE_REQUIRED';
     return NextResponse.json(
-      { authorized: false, error: 'Session token invalid or expired.', code: verification.error },
-      { status: 401 }
+      {
+        authorized: false,
+        error: isDistributedRequired
+          ? 'Security Policy Violation: Privileged administrative access requires an active distributed datastore. Access is failed-closed.'
+          : 'Session token invalid or expired.',
+        code: verification.error,
+      },
+      { status: isDistributedRequired ? 503 : 401 }
     );
   }
 

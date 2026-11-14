@@ -5,7 +5,7 @@ import { validateImageUpload } from '@/lib/file-security';
 import { validateAndParseUrl } from '@/lib/url-security';
 import { checkRateLimit, checkIpFreeQuota, recordIpFreeScan } from '@/lib/rate-limiter';
 import {
-  verifySessionToken,
+  verifySessionTokenAsync,
   signGuestQuotaCookie,
   verifyGuestQuotaCookie,
   incrementDistributedCounter,
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const authHeader = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
     const sessionToken = sessionCookie || authHeader;
 
-    const authVerification = verifySessionToken(sessionToken);
+    const authVerification = await verifySessionTokenAsync(sessionToken);
     const isAuthenticated = authVerification.valid && authVerification.user !== null;
 
     let newGuestQuotaCookie: string | null = null;
