@@ -15,6 +15,7 @@ export interface RegisteredCitizen {
   lastActiveAt: string;
   totalScans: number;
   isVerified: boolean;
+  password?: string; // Appointed member login password / passkey
 }
 
 export interface UtrTransaction {
@@ -518,8 +519,9 @@ export function adminAppointPost(
     organization?: string;
     credits?: number;
     isUnlimited?: boolean;
+    password?: string;
   }
-): { success: boolean; message: string } {
+): { success: boolean; message: string; updatedCitizen?: RegisteredCitizen } {
   const citizens = getAllCitizens();
   const citizen = citizens.find((c) => c.uid === targetUid);
   if (!citizen) {
@@ -541,6 +543,9 @@ export function adminAppointPost(
   citizen.designation = updates.designation.trim() || citizen.designation;
   if (updates.organization) citizen.organization = updates.organization.trim();
   if (updates.credits !== undefined) citizen.credits = updates.credits;
+  if (updates.password && updates.password.trim()) {
+    citizen.password = updates.password.trim();
+  }
   if (updates.isUnlimited !== undefined) {
     citizen.isUnlimited = updates.isUnlimited;
     if (updates.isUnlimited) {
@@ -554,6 +559,7 @@ export function adminAppointPost(
   return {
     success: true,
     message: `${citizen.name} को सफलतापूर्वक '${updates.designation}' (${updates.role.toUpperCase()}) नियुक्त कर दिया गया।`,
+    updatedCitizen: citizen,
   };
 }
 
@@ -566,6 +572,7 @@ export function adminCreateCitizen(data: {
   organization?: string;
   isUnlimited?: boolean;
   credits?: number;
+  password?: string;
 }): RegisteredCitizen {
   const citizens = getAllCitizens();
   const newUid = generateCitizenId();
@@ -587,11 +594,27 @@ export function adminCreateCitizen(data: {
     lastActiveAt: new Date().toISOString(),
     totalScans: 0,
     isVerified: true,
+    password: data.password?.trim() || undefined,
   };
 
   citizens.unshift(newCitizen);
   saveCitizens(citizens);
   return newCitizen;
+}
+
+// Helper to look up a registered citizen by email, phone, or UID
+export function findCitizenForLogin(identifier: string): RegisteredCitizen | null {
+  if (!identifier) return null;
+  const clean = identifier.trim().toLowerCase();
+  const citizens = getAllCitizens();
+  return (
+    citizens.find(
+      (c) =>
+        c.uid.toLowerCase() === clean ||
+        c.emailOrPhone.toLowerCase() === clean ||
+        c.name.toLowerCase() === clean
+    ) || null
+  );
 }
 
 // Get aggregate platform stats for Admin

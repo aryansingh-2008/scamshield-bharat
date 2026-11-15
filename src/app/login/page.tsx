@@ -21,6 +21,7 @@ import {
   MASTER_ADMIN_USER,
   PRESIDENT_USER,
 } from '@/lib/auth-context';
+import { findCitizenForLogin } from '@/lib/user-registry';
 
 function LoginContent() {
   const router = useRouter();
@@ -166,12 +167,33 @@ function LoginContent() {
       .then(({ ok, data }) => {
         setIsSubmitting(false);
         if (!ok) {
+          // Check if this identifier is an appointed citizen in user-registry with an assigned password!
+          const appointed = findCitizenForLogin(identifier);
+          if (appointed && appointed.password && appointed.password === password.trim()) {
+            login(appointed);
+            if (appointed.role === 'admin') {
+              if (typeof window !== 'undefined') {
+                sessionStorage.setItem('scamshield_admin_authenticated', 'true');
+              }
+              router.push(redirectPath === '/' ? '/admin' : redirectPath);
+            } else {
+              router.push(redirectPath);
+            }
+            return;
+          }
+
           setAuthError(data.error || (isHindi ? 'अमान्य क्रेडेंशियल्स।' : 'Authentication failed. Please check your credentials.'));
           refreshCaptcha();
           return;
         }
 
-        const authenticatedUser = data.user;
+        let authenticatedUser = data.user;
+        const appointed = findCitizenForLogin(identifier);
+        if (appointed && appointed.role === 'admin' && appointed.password === password.trim()) {
+          authenticatedUser = appointed;
+        } else if (appointed && appointed.role === 'investigator') {
+          authenticatedUser = { ...authenticatedUser, role: 'investigator', designation: appointed.designation };
+        }
         login(authenticatedUser);
 
         if (authenticatedUser.role === 'admin') {

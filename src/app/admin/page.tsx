@@ -122,6 +122,8 @@ export default function AdminPage() {
   const [addOrg, setAddOrg] = useState('ScamShield Bharat (IIT BHU)');
   const [addUnlimited, setAddUnlimited] = useState(false);
   const [addCredits, setAddCredits] = useState(25);
+  const [addPassword, setAddPassword] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(false);
 
   // Form State for Edit Post
   const [editName, setEditName] = useState('');
@@ -130,6 +132,19 @@ export default function AdminPage() {
   const [editOrg, setEditOrg] = useState('');
   const [editCredits, setEditCredits] = useState(5);
   const [editUnlimited, setEditUnlimited] = useState(false);
+  const [editPassword, setEditPassword] = useState('');
+  const [showEditPassword, setShowEditPassword] = useState(false);
+
+  // Credentials Slip Modal State (When Appointing a Member or Changing Password)
+  const [credentialsSlip, setCredentialsSlip] = useState<{
+    name: string;
+    uid: string;
+    contact: string;
+    role: string;
+    designation: string;
+    password: string;
+  } | null>(null);
+  const [slipCopied, setSlipCopied] = useState(false);
 
   const reloadData = () => {
     const allC = getAllCitizens();
@@ -243,6 +258,8 @@ export default function AdminPage() {
     setEditOrg(c.organization);
     setEditCredits(c.credits);
     setEditUnlimited(c.isUnlimited);
+    setEditPassword(c.password || '');
+    setShowEditPassword(false);
     setIsEditModalOpen(true);
   };
 
@@ -260,12 +277,26 @@ export default function AdminPage() {
       organization: addOrg,
       isUnlimited: addUnlimited,
       credits: addCredits,
+      password: addPassword,
     });
     setIsAddModalOpen(false);
+    const assignedPass = addPassword.trim();
     setAddName('');
     setAddContact('');
     setAddDesignation('');
+    setAddPassword('');
     reloadData();
+
+    if (assignedPass) {
+      setCredentialsSlip({
+        name: created.name,
+        uid: created.uid,
+        contact: created.emailOrPhone,
+        role: created.role,
+        designation: created.designation,
+        password: assignedPass,
+      });
+    }
     showNotification(`✅ सदस्य '${created.name}' (${created.uid}) को सफलतापूर्वक नियुक्त किया गया!`);
   };
 
@@ -279,7 +310,12 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'APPOINT_POST',
-          payload: { uid: selectedCitizenForEdit.uid, role: editRole },
+          payload: {
+            uid: selectedCitizenForEdit.uid,
+            role: editRole,
+            designation: editDesignation,
+            password: editPassword,
+          },
         }),
       });
       const data = await serverRes.json().catch(() => ({}));
@@ -295,14 +331,29 @@ export default function AdminPage() {
         organization: editOrg,
         credits: editCredits,
         isUnlimited: editUnlimited,
+        password: editPassword,
       });
       if (!res.success) {
         showNotification(`⚠️ ${res.message}`);
         return;
       }
       setIsEditModalOpen(false);
+      const savedUid = selectedCitizenForEdit.uid;
+      const savedContact = selectedCitizenForEdit.emailOrPhone;
+      const assignedPass = editPassword.trim();
       setSelectedCitizenForEdit(null);
       reloadData();
+
+      if (assignedPass) {
+        setCredentialsSlip({
+          name: editName,
+          uid: savedUid,
+          contact: savedContact,
+          role: editRole,
+          designation: editDesignation,
+          password: assignedPass,
+        });
+      }
       showNotification(`✅ ${res.message}`);
     } catch {
       showNotification('⚠️ सर्वर संचार त्रुटि (Network Error)।');
@@ -1706,6 +1757,49 @@ export default function AdminPage() {
                   />
                 </div>
 
+                {/* Password / Passkey Field for New Appointee */}
+                <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                      <Lock className="w-4 h-4 text-[#004A87]" />
+                      <span>सदस्य लॉगिन पासवर्ड / सुरक्षा पासकी (Login Password / Passkey)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                        let code = '';
+                        for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+                        const rand = `SSB#${code}${Math.floor(100 + Math.random() * 900)}`;
+                        setAddPassword(rand);
+                      }}
+                      className="text-[11px] font-extrabold text-[#004A87] hover:underline flex items-center gap-1 cursor-pointer bg-white px-2 py-0.5 rounded-lg border border-blue-200 shadow-2xs"
+                    >
+                      <span>🎲 ऑटो-पासवर्ड बनाएं</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showAddPassword ? 'text' : 'password'}
+                      value={addPassword}
+                      onChange={(e) => setAddPassword(e.target.value)}
+                      placeholder="कम से कम 6 अक्षरों का पासवर्ड (उदा. Member@Pass2026)"
+                      className="w-full px-3 py-2.5 rounded-xl border border-blue-300 bg-white text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#004A87] pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPassword(!showAddPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+                      title={showAddPassword ? 'पासवर्ड छुपाएं' : 'पासवर्ड देखें'}
+                    >
+                      {showAddPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-blue-900 leading-tight">
+                    🔑 नियुक्त होने के बाद यह सदस्य अपने मोबाइल/ईमेल और इस पासवर्ड से <code className="bg-blue-100 px-1 py-0.5 rounded font-mono font-bold text-blue-950">/login</code> पर लॉगिन कर सकेगा।
+                  </p>
+                </div>
+
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
@@ -1846,6 +1940,49 @@ export default function AdminPage() {
                   />
                 </div>
 
+                {/* Password / Passkey Field for Appointed Member */}
+                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <Lock className="w-4 h-4 text-amber-700" />
+                      <span>सदस्य लॉगिन पासवर्ड / सुरक्षा पासकी (Login Password / Passkey)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                        let code = '';
+                        for (let i = 0; i < 4; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+                        const rand = `SSB#${code}${Math.floor(100 + Math.random() * 900)}`;
+                        setEditPassword(rand);
+                      }}
+                      className="text-[11px] font-extrabold text-[#004A87] hover:underline flex items-center gap-1 cursor-pointer bg-white px-2 py-0.5 rounded-lg border border-amber-200 shadow-2xs"
+                    >
+                      <span>🎲 ऑटो-पासवर्ड बनाएं</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showEditPassword ? 'text' : 'password'}
+                      value={editPassword}
+                      onChange={(e) => setEditPassword(e.target.value)}
+                      placeholder="कम से कम 6 अक्षरों का पासवर्ड सेट करें (उदा. Aryan@VicePres2026)"
+                      className="w-full px-3 py-2.5 rounded-xl border border-amber-300 bg-white text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#004A87] pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPassword(!showEditPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer p-1"
+                      title={showEditPassword ? 'पासवर्ड छुपाएं' : 'पासवर्ड देखें'}
+                    >
+                      {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-amber-900 leading-tight">
+                    🔑 यह सदस्य अपने UID (<span className="font-mono font-bold">{selectedCitizenForEdit.uid}</span>) या मोबाइल/ईमेल और इस पासवर्ड से <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-amber-950">/login</code> पर लॉगिन कर सकेगा।
+                  </p>
+                </div>
+
                 <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                   <button
                     type="button"
@@ -1862,6 +1999,97 @@ export default function AdminPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* MODAL: APPOINTMENT CREDENTIALS SLIP (COPY & SEND)       */}
+        {/* ======================================================== */}
+        {credentialsSlip && (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+            <div className="w-full max-w-md bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-7 space-y-5 relative animate-in zoom-in-95">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-base text-slate-900">
+                      नियुक्ति पत्र व लॉगिन क्रेडेंशियल्स
+                    </h3>
+                    <p className="text-[11px] text-emerald-700 font-mono font-bold">
+                      Official Appointment Slip Generated
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCredentialsSlip(null);
+                    setSlipCopied(false);
+                  }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3 font-mono text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block">सदस्य का नाम (Member Name)</span>
+                  <span className="font-bold text-slate-900 font-sans text-sm">{credentialsSlip.name}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider block">पद (Designation)</span>
+                    <span className="font-bold text-[#004A87] font-sans">{credentialsSlip.designation}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider block">सिस्टम रोल (Role)</span>
+                    <span className="font-bold text-amber-800 uppercase">{credentialsSlip.role}</span>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-slate-200">
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block">लॉगिन पोर्टल (Portal)</span>
+                  <span className="font-bold text-blue-700 break-all select-all font-sans">https://scamshieldbharat.live/login</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block">लॉगिन आईडी (Login ID / UID)</span>
+                  <span className="font-bold text-slate-900 break-all select-all">{credentialsSlip.uid} ({credentialsSlip.contact})</span>
+                </div>
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-300">
+                  <span className="text-[10px] text-amber-800 uppercase tracking-wider block font-bold">लॉगिन पासवर्ड (Login Password)</span>
+                  <span className="font-bold text-base text-amber-950 font-mono tracking-wider select-all">{credentialsSlip.password}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const text = `🛡️ ScamShield Bharat — Official Appointment & Login Credentials\n\n👤 सदस्य का नाम: ${credentialsSlip.name}\n🎖️ आधिकारिक पद: ${credentialsSlip.designation} (${credentialsSlip.role.toUpperCase()})\n🌐 लॉगिन पोर्टल: https://scamshieldbharat.live/login\n🆔 लॉगिन आईडी: ${credentialsSlip.uid} (या ${credentialsSlip.contact})\n🔑 लॉगिन पासवर्ड: ${credentialsSlip.password}\n\n⚠️ कृपया लॉगिन करके अपना पासवर्ड सुरक्षित रखें।`;
+                    navigator.clipboard.writeText(text);
+                    setSlipCopied(true);
+                    showNotification('📋 क्रेडेंशियल्स सफलतापूर्वक क्लिपबोर्ड पर कॉपी हो गए!');
+                    setTimeout(() => setSlipCopied(false), 3000);
+                  }}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#002D54] to-[#004A87] hover:from-[#001D38] hover:to-[#003868] text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                >
+                  {slipCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  <span>{slipCopied ? 'क्रेडेंशियल्स कॉपी हो गए!' : '📋 क्रेडेंशियल्स कॉपी करें (WhatsApp / Email पर भेजें)'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCredentialsSlip(null);
+                    setSlipCopied(false);
+                  }}
+                  className="w-full py-2.5 text-xs text-slate-500 hover:text-slate-800 font-bold transition-colors cursor-pointer"
+                >
+                  पूर्ण हुआ (Close)
+                </button>
+              </div>
             </div>
           </div>
         )}
