@@ -612,7 +612,9 @@ export function findCitizenForLogin(identifier: string): RegisteredCitizen | nul
       (c) =>
         c.uid.toLowerCase() === clean ||
         c.emailOrPhone.toLowerCase() === clean ||
-        c.name.toLowerCase() === clean
+        c.name.toLowerCase() === clean ||
+        ((clean === 'admin' || clean === 'aryan') && c.uid === 'SSB-ADMIN-0001') ||
+        ((clean === 'arti' || clean === 'president') && c.uid === 'SSB-PRESIDENT-0001')
     ) || null
   );
 }

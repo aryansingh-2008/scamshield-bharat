@@ -268,11 +268,11 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: any) {
-    const isDev = process.env.NODE_ENV !== 'production';
+    console.error('CRITICAL AUTH LOGIN ERROR:', error);
     return NextResponse.json(
       {
         error: 'Authentication failed due to a server configuration or processing error.',
-        ...(isDev ? { details: error?.message || String(error) } : {}),
+        details: error?.message || String(error),
       },
       { status: 500 }
     );
