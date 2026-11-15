@@ -72,3 +72,23 @@ export function checkRateLimit(clientIp: string): RateLimitResult {
     resetSeconds: 60,
   };
 }
+
+// IP-based persistent free scan trial tracker (Max 5 scans per network IP for unverified requests)
+const ipTrialLedger = new Map<string, number>();
+
+export function checkIpFreeQuota(clientIp: string): { allowed: boolean; used: number; remaining: number } {
+  const cleanIp = clientIp || '127.0.0.1';
+  const used = ipTrialLedger.get(cleanIp) || 0;
+  if (used >= 5) {
+    return { allowed: false, used, remaining: 0 };
+  }
+  return { allowed: true, used, remaining: 5 - used };
+}
+
+export function recordIpFreeScan(clientIp: string): number {
+  const cleanIp = clientIp || '127.0.0.1';
+  const current = ipTrialLedger.get(cleanIp) || 0;
+  const next = Math.min(5, current + 1);
+  ipTrialLedger.set(cleanIp, next);
+  return next;
+}

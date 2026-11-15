@@ -61,9 +61,9 @@ export default function DeviceMockupShowcase({ lang }: { lang: 'en' | 'hi' }) {
                     <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-[#004A87]" />
                   </div>
                   <div>
-                    <h4 className="text-[10px] sm:text-[11px] font-bold text-slate-900 leading-none">
+                    <p className="text-[10px] sm:text-[11px] font-bold text-slate-900 leading-none">
                       {isHindi ? 'संदेश की जांच करें' : 'Check if it’s a scam'}
-                    </h4>
+                    </p>
                     <p className="text-[7px] sm:text-[8px] text-slate-400 mt-0.5 hidden xs:block">
                       Paste a message, link or upload an image...
                     </p>
@@ -156,9 +156,9 @@ export default function DeviceMockupShowcase({ lang }: { lang: 'en' | 'hi' }) {
             {/* Mini Mobile Input Card */}
             <div className="bg-white rounded-lg p-1.5 border border-slate-200 shadow-2xs space-y-1">
               <div className="flex items-center justify-between">
-                <h5 className="text-[7.5px] sm:text-[8.5px] font-bold text-slate-900 leading-none">
+                <p className="text-[7.5px] sm:text-[8.5px] font-bold text-slate-900 leading-none">
                   {isHindi ? 'संदेश की जांच' : 'Check Message'}
-                </h5>
+                </p>
                 <span className="text-[6px] text-emerald-700 bg-emerald-50 px-1 rounded font-mono">PII Safe</span>
               </div>
 

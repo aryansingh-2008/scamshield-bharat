@@ -21,6 +21,9 @@ import ArchitectureModal from '@/components/ArchitectureModal';
 import SecurityModal from '@/components/SecurityModal';
 import SafetyTipsModal from '@/components/SafetyTipsModal';
 import AboutModal from '@/components/AboutModal';
+import TermsModal from '@/components/TermsModal';
+import UserProfileModal from '@/components/UserProfileModal';
+import CreditRechargeModal from '@/components/CreditRechargeModal';
 import SmartRiskWarningModal from '@/components/SmartRiskWarningModal';
 import OfficialSourcesPage from '@/components/OfficialSourcesPage';
 import Footer from '@/components/Footer';
@@ -42,7 +45,7 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const { user, isSkipped, skipLogin } = useAuth();
+  const { user, isSkipped, skipLogin, consumeCredit, credits, isUnlimited, syncCreditsFromServer } = useAuth();
   const [lang, setLang] = useState<'en' | 'hi'>('en');
   const isHindi = lang === 'hi';
   const [currentView, setCurrentView] = useState<'home' | 'sources'>('home');
@@ -67,6 +70,9 @@ export default function HomePage() {
   const [isSafetyTipsOpen, setIsSafetyTipsOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSecurityOpen, setIsSecurityOpen] = useState(false);
+  const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isRechargeOpen, setIsRechargeOpen] = useState(false);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
 
   const inputSectionRef = useRef<HTMLDivElement>(null);
@@ -101,20 +107,46 @@ export default function HomePage() {
     },
     defaultErrorMessage: string
   ) => {
+    // Quota / Credit check
+    if (!consumeCredit()) {
+      setIsRechargeOpen(true);
+      setErrorMessage(
+        lang === 'hi'
+          ? user
+            ? '⚠️ आपके सुरक्षा क्रेडिट समाप्त हो गए हैं। आगे जांच जारी रखने के लिए कृपया रीचार्ज करें!'
+            : '⚠️ आपके डिवाइस/आईपी के 5 मुफ्त ट्रायल स्कैन समाप्त हो गए हैं। आगे स्कैन करने हेतु कृपया लॉगिन करें!'
+          : user
+          ? '⚠️ Your safety credits have been used. Please recharge to continue scanning!'
+          : '⚠️ Your 5 free trial scans on this device/IP have been used. Please sign in to continue!'
+      );
+      return;
+    }
+
     setCurrentView('home');
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
+      const headers = new Headers(requestOptions.headers || {});
+
       const response = await fetch(requestOptions.url, {
         method: 'POST',
-        headers: requestOptions.headers,
+        headers,
+        credentials: 'same-origin',
         body: requestOptions.body,
       });
 
       const data = await response.json();
       if (!response.ok) {
+        if (response.status === 402) {
+          syncCreditsFromServer(0);
+          setIsRechargeOpen(true);
+        }
         throw new Error(data.error || defaultErrorMessage);
+      }
+
+      if (data && typeof data.creditsRemaining === 'number') {
+        syncCreditsFromServer(data.creditsRemaining, data.isUnlimited);
       }
 
       setAnalysisResult(data);
@@ -255,6 +287,9 @@ export default function HomePage() {
         onOpenSafetyTips={() => setIsSafetyTipsOpen(true)}
         onOpenAbout={() => setIsAboutOpen(true)}
         onOpenSecurity={() => setIsSecurityOpen(true)}
+        onOpenTerms={() => setIsTermsOpen(true)}
+        onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenRecharge={() => setIsRechargeOpen(true)}
         onNavigateHome={handleResetCheck}
         onNavigateSources={() => setCurrentView('sources')}
         onTriggerDemo={() => scrollToInput('demo')}
@@ -761,7 +796,7 @@ export default function HomePage() {
       </main>
 
       {/* Footer */}
-      <Footer lang={lang} />
+      <Footer lang={lang} onOpenTerms={() => setIsTermsOpen(true)} />
 
       {/* Modals */}
       <ArchitectureModal
@@ -785,6 +820,24 @@ export default function HomePage() {
       <SecurityModal
         isOpen={isSecurityOpen}
         onClose={() => setIsSecurityOpen(false)}
+        lang={lang}
+      />
+
+      <TermsModal
+        isOpen={isTermsOpen}
+        onClose={() => setIsTermsOpen(false)}
+        lang={lang}
+      />
+
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        lang={lang}
+      />
+
+      <CreditRechargeModal
+        isOpen={isRechargeOpen}
+        onClose={() => setIsRechargeOpen(false)}
         lang={lang}
       />
 

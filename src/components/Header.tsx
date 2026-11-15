@@ -17,6 +17,8 @@ import {
   LogOut,
   User,
   Shield,
+  Scale,
+  Coins,
 } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 import { useAuth } from '@/lib/auth-context';
@@ -29,6 +31,9 @@ interface HeaderProps {
   onOpenSafetyTips?: () => void;
   onOpenAbout?: () => void;
   onOpenSecurity?: () => void;
+  onOpenTerms?: () => void;
+  onOpenProfile?: () => void;
+  onOpenRecharge?: () => void;
   onNavigateHome: () => void;
   onNavigateSources?: () => void;
   onTriggerDemo?: () => void;
@@ -42,6 +47,9 @@ export default function Header({
   onOpenSafetyTips,
   onOpenAbout,
   onOpenSecurity,
+  onOpenTerms,
+  onOpenProfile,
+  onOpenRecharge,
   onNavigateHome,
   onNavigateSources,
   onTriggerDemo,
@@ -49,13 +57,33 @@ export default function Header({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isHindi = lang === 'hi';
   const t = TRANSLATIONS[lang];
-  const { user, logout } = useAuth();
+  const { user, logout, credits, isUnlimited } = useAuth();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white shadow-xs">
-      <div className="max-w-[1340px] mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
+      {/* Statutory Civic Awareness Top Bar */}
+      <div className="w-full bg-[#07131F] text-slate-300 text-[10.5px] py-1 px-3 sm:px-6 lg:px-8 flex items-center justify-between border-b border-slate-800">
+        <div className="flex items-center gap-2 truncate">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+          <span className="truncate">
+            {isHindi
+              ? 'स्वतंत्र नागरिक सुरक्षा साधन • भारत सरकार या सेबी से संबद्ध नहीं • आपातकालीन साइबर हेल्पलाइन: 1930'
+              : 'Independent Civic Safety Platform • Not Affiliated with Govt of India or SEBI • National Helpline: 1930'}
+          </span>
+        </div>
+        {onOpenTerms && (
+          <button
+            onClick={onOpenTerms}
+            className="text-amber-400 hover:text-amber-300 font-semibold underline text-[10.5px] shrink-0 ml-3 cursor-pointer"
+          >
+            {isHindi ? 'कानूनी नियम व अस्वीकरण' : 'Terms & Disclaimers'}
+          </button>
+        )}
+      </div>
+
+      <div className="max-w-[1340px] mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative gap-2">
         {/* Left Brand Identity */}
-        <div className="relative flex items-center h-full min-w-0 pr-1 sm:pr-0">
+        <div className="relative flex items-center h-full min-w-0 flex-1 sm:flex-initial pr-1 sm:pr-0">
           {/* Angled background accent shape */}
           <div
             className="hidden sm:block absolute inset-y-0 -left-6 w-[calc(100%+38px)] bg-[#EEF4F9] border-r border-slate-200/80 -z-10"
@@ -69,7 +97,7 @@ export default function Header({
               setIsMobileMenuOpen(false);
               onNavigateHome();
             }}
-            className="flex items-center gap-2 sm:gap-3 text-left group focus:outline-none focus:ring-2 focus:ring-[#004A87] rounded-lg p-1 min-w-0"
+            className="flex items-center gap-2 sm:gap-3 text-left group focus:outline-none focus:ring-2 focus:ring-[#004A87] rounded-lg p-0.5 sm:p-1 min-w-0"
             aria-label="ScamShield Bharat Home"
           >
             {/* Solid Deep Institutional Blue Shield Block */}
@@ -146,19 +174,54 @@ export default function Header({
           )}
 
           {/* About */}
-          {onOpenAbout && (
+          <Link
+            href="/about"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+            title={isHindi ? 'स्कैम शील्ड भारत के बारे में' : 'About Scam Shield Bharat'}
+          >
+            <Info className="w-3.5 h-3.5 text-slate-400" />
+            <span>{isHindi ? 'हमारे बारे में' : 'About'}</span>
+          </Link>
+
+          {/* Profile Navigation Button */}
+          {onOpenProfile && (
             <button
-              onClick={onOpenAbout}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors"
+              onClick={onOpenProfile}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#004A87] bg-blue-50/80 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+              title={isHindi ? 'नागरिक सुरक्षा प्रोफ़ाइल' : 'Citizen Safety Profile'}
             >
-              <Info className="w-3.5 h-3.5 text-slate-400" />
-              <span>{isHindi ? 'हमारे बारे में' : 'About'}</span>
+              <User className="w-3.5 h-3.5 text-[#004A87]" />
+              <span>{isHindi ? 'प्रोफ़ाइल' : 'Profile'}</span>
             </button>
+          )}
+
+          {/* Admin / President Command Link (ONLY visible if logged-in user is Chief Admin or President) */}
+          {user?.role === 'admin' && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg transition-colors cursor-pointer shadow-2xs"
+              title={
+                user?.uid === 'SSB-PRESIDENT-0001'
+                  ? 'President Executive Command (/admin)'
+                  : 'Chief Admin Console (/admin)'
+              }
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+              <span>
+                {user?.uid === 'SSB-PRESIDENT-0001'
+                  ? isHindi
+                    ? '👑 प्रेसिडेंट'
+                    : '👑 President'
+                  : isHindi
+                  ? 'एडमिन'
+                  : 'Admin'}
+              </span>
+            </Link>
           )}
         </nav>
 
         {/* Action Controls & Navigation */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2.5 shrink-0">
           {/* Quick Demo Trigger in Header */}
           {onTriggerDemo && currentView === 'home' && (
             <button
@@ -174,7 +237,7 @@ export default function Header({
           {/* Bilingual Language Switcher */}
           <button
             onClick={onToggleLang}
-            className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-300 transition-colors focus:ring-2 focus:ring-[#004A87] shrink-0 shadow-2xs"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:border-slate-300 transition-colors focus:ring-2 focus:ring-[#004A87] shrink-0 shadow-2xs"
             aria-label="Toggle language between English and Hindi"
           >
             <span
@@ -198,21 +261,73 @@ export default function Header({
             </span>
           </button>
 
+          {/* Credit Quota & Recharge Control (Recharge is strictly visible only to logged-in citizens) */}
+          {user && onOpenRecharge ? (
+            <button
+              onClick={onOpenRecharge}
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer shadow-2xs shrink-0 ${
+                isUnlimited
+                  ? 'bg-amber-50/90 border-amber-300 text-amber-900 hover:bg-amber-100'
+                  : credits > 2
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                  : 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100 animate-pulse'
+              }`}
+              title={isHindi ? 'सुरक्षा क्रेडिट्स बैलेंस व रीचार्ज' : 'Safety Credits Balance & Recharge'}
+            >
+              <Coins className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>
+                {isUnlimited
+                  ? '👑 Pro'
+                  : (
+                    <>
+                      <span className="font-mono">{credits}</span>
+                      <span className="hidden sm:inline"> {isHindi ? 'क्रेडिट' : 'Credits'}</span>
+                    </>
+                  )}
+              </span>
+              <span className="text-[10px] px-1 py-0.2 bg-amber-200/80 text-amber-900 rounded font-extrabold hidden md:inline">
+                {isHindi ? 'रीचार्ज (₹9)' : 'Top-up'}
+              </span>
+            </button>
+          ) : (
+            <div
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-bold rounded-lg border bg-slate-50 border-slate-200 text-slate-700 shadow-2xs shrink-0"
+              title={isHindi ? 'मुफ्त ट्रायल स्कैन (अधिकतम 5 प्रति डिवाइस/आईपी)' : 'Free Trial Scans (5 Max per device/IP)'}
+            >
+              <span className="text-xs">🪙</span>
+              <span>
+                <span className="font-mono">{credits}</span>
+                <span className="hidden sm:inline"> {isHindi ? 'मुफ्त स्कैन' : 'Free Scans'}</span>
+              </span>
+            </div>
+          )}
+
           {/* Authentication Badge / Login Button */}
           {user ? (
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 text-xs rounded-lg bg-blue-50 border border-blue-200 text-[#004A87] shadow-2xs">
-                <div className="w-5 h-5 rounded-full bg-[#004A87] text-white flex items-center justify-center text-[10px] font-bold shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+              <button
+                onClick={onOpenProfile}
+                className="flex items-center gap-1.5 px-1.5 sm:px-2.5 py-1 text-xs rounded-lg bg-blue-50 hover:bg-blue-100/80 border border-blue-200 text-[#004A87] shadow-2xs transition-colors cursor-pointer group shrink-0"
+                title={isHindi ? 'मेरी प्रोफ़ाइल देखें' : 'View My Profile'}
+              >
+                <div className="w-5 h-5 rounded-full bg-[#004A87] text-white flex items-center justify-center text-[10px] font-bold shrink-0 group-hover:scale-105 transition-transform">
                   {user.name.charAt(0).toUpperCase()}
                 </div>
                 <span className="font-bold hidden md:inline truncate max-w-[110px]">
                   {user.name}
                 </span>
-
-              </div>
+                {user.uid && (
+                  <span className="text-[9px] font-mono font-bold text-amber-900 bg-amber-100 border border-amber-300 px-1 py-0.2 rounded hidden xl:inline">
+                    {user.uid.length > 12 ? user.uid.slice(-8) : user.uid}
+                  </span>
+                )}
+                <span className="text-[10px] px-1 py-0.2 bg-emerald-100 text-emerald-800 rounded font-semibold hidden lg:inline">
+                  ✓
+                </span>
+              </button>
               <button
                 onClick={logout}
-                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                className="hidden sm:flex p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
                 title={isHindi ? 'लॉगआउट करें' : 'Sign Out'}
                 aria-label="Sign Out"
               >
@@ -222,7 +337,7 @@ export default function Header({
           ) : (
             <Link
               href="/login"
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-[#004A87] hover:bg-[#003866] transition-colors shadow-2xs shrink-0"
+              className="hidden sm:flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-[#004A87] hover:bg-[#003866] transition-colors shadow-2xs shrink-0"
             >
               <LogIn className="w-3.5 h-3.5" />
               <span>{isHindi ? 'लॉगिन' : 'Sign In'}</span>
@@ -232,7 +347,7 @@ export default function Header({
           {/* Mobile Hamburger Toggle Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors"
+            className="lg:hidden p-1.5 sm:p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors shrink-0"
             aria-label="Toggle mobile navigation menu"
           >
             {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
@@ -246,23 +361,34 @@ export default function Header({
           {/* Mobile User Profile Section */}
           {user ? (
             <div className="p-3 mb-2 rounded-xl bg-blue-50/80 border border-blue-200 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-[#004A87] text-white flex items-center justify-center font-bold text-xs">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onOpenProfile?.();
+                }}
+                className="flex items-center gap-2.5 text-left flex-1 min-w-0 cursor-pointer"
+              >
+                <div className="w-8 h-8 rounded-full bg-[#004A87] text-white flex items-center justify-center font-bold text-xs shrink-0">
                   {user.name.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <p className="font-bold text-xs text-slate-900">{user.name}</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-xs text-slate-900 truncate">{user.name}</p>
+                    <span className="text-[9px] px-1 bg-emerald-100 text-emerald-800 rounded font-bold">
+                      VERIFIED
+                    </span>
+                  </div>
                   <p className="text-[11px] text-slate-500 truncate">
                     {user.emailOrPhone || 'Verified Account'}
                   </p>
                 </div>
-              </div>
+              </button>
               <button
                 onClick={() => {
                   logout();
                   setIsMobileMenuOpen(false);
                 }}
-                className="px-2.5 py-1 text-xs font-bold text-red-600 bg-white hover:bg-red-50 rounded-lg border border-red-200 transition-colors"
+                className="px-2.5 py-1 text-xs font-bold text-red-600 bg-white hover:bg-red-50 rounded-lg border border-red-200 transition-colors shrink-0 ml-2 cursor-pointer"
               >
                 {isHindi ? 'लॉगआउट' : 'Sign Out'}
               </button>
@@ -284,6 +410,39 @@ export default function Header({
               >
                 {isHindi ? 'लॉगिन करें' : 'Sign In'}
               </Link>
+            </div>
+          )}
+
+          {/* Mobile Credit Recharge Banner (Only for logged-in citizens) */}
+          {user && onOpenRecharge ? (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenRecharge();
+              }}
+              className="w-full flex items-center justify-between p-2.5 mb-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-amber-700" />
+                <span>
+                  {isUnlimited
+                    ? '👑 Pro Unlimited Pass'
+                    : `🪙 ${credits} ${isHindi ? 'क्रेडिट्स शेष' : 'Credits Left'}`}
+                </span>
+              </div>
+              <span className="text-[11px] px-2.5 py-0.5 rounded-lg bg-amber-200 text-amber-900 font-extrabold shadow-2xs">
+                {isHindi ? 'रीचार्ज (₹9)' : 'Top-up (₹9)'}
+              </span>
+            </button>
+          ) : (
+            <div className="w-full flex items-center justify-between p-2.5 mb-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold">
+              <div className="flex items-center gap-2">
+                <span>🪙</span>
+                <span>
+                  {credits} {isHindi ? 'मुफ्त ट्रायल स्कैन शेष' : 'Free Trial Scans Left'}
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-mono">5 MAX / IP</span>
             </div>
           )}
 
@@ -343,16 +502,49 @@ export default function Header({
             </button>
           )}
 
-          {onOpenAbout && (
+          {onOpenProfile && (
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);
-                onOpenAbout();
+                onOpenProfile();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg text-left transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-[#004A87] bg-blue-50/80 hover:bg-blue-100 rounded-lg text-left transition-colors"
             >
-              <Info className="w-4 h-4 text-slate-400" />
-              <span>{isHindi ? 'हमारे बारे में' : 'About ScamShield Bharat'}</span>
+              <User className="w-4 h-4 text-[#004A87]" />
+              <span>{isHindi ? 'नागरिक सुरक्षा प्रोफ़ाइल' : 'Citizen Safety Profile'}</span>
+            </button>
+          )}
+
+          {user?.role === 'admin' && (
+            <Link
+              href="/admin"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg text-left transition-colors"
+            >
+              <ShieldCheck className="w-4 h-4 text-amber-600" />
+              <span>{isHindi ? '🛡️ चीफ एडमिन कंसोल (/admin)' : '🛡️ Chief Admin Console (/admin)'}</span>
+            </Link>
+          )}
+
+          <Link
+            href="/about"
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg text-left transition-colors"
+          >
+            <Info className="w-4 h-4 text-slate-400" />
+            <span>{isHindi ? 'स्कैम शील्ड भारत के बारे में' : 'About Scam Shield Bharat'}</span>
+          </Link>
+
+          {onOpenTerms && (
+            <button
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onOpenTerms();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 rounded-lg text-left transition-colors"
+            >
+              <Scale className="w-4 h-4 text-amber-600" />
+              <span>{isHindi ? 'कानूनी नियम व अस्वीकरण' : 'Terms & Disclaimers'}</span>
             </button>
           )}
         </div>

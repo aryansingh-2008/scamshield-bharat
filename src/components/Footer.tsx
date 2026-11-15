@@ -1,15 +1,17 @@
 'use client';
 
 import React from 'react';
-import { ShieldCheck, PhoneCall, ExternalLink, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { ShieldCheck, PhoneCall, ExternalLink, AlertCircle, Scale, Mail } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 import { OFFICIAL_SOURCES, CYBERCRIME_HELPLINE } from '@/lib/official-sources';
 
 interface FooterProps {
   lang: 'en' | 'hi';
+  onOpenTerms?: () => void;
 }
 
-export default function Footer({ lang }: FooterProps) {
+export default function Footer({ lang, onOpenTerms }: FooterProps) {
   const t = TRANSLATIONS[lang];
 
   return (
@@ -25,12 +27,21 @@ export default function Footer({ lang }: FooterProps) {
             <p className="text-xs text-console-400 leading-relaxed">
               {t.brandTagline}
             </p>
+            <div className="pt-1">
+              <Link
+                href="/about"
+                className="text-[#004A87] hover:underline font-semibold text-[11.5px] inline-flex items-center gap-1"
+              >
+                <span>{lang === 'hi' ? 'स्कैम शील्ड भारत के बारे में' : 'About Scam Shield Bharat'}</span>
+                <span aria-hidden="true">&rarr;</span>
+              </Link>
+            </div>
           </div>
 
           <div className="space-y-1.5">
-            <h5 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
+            <h3 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
               Cyber Fraud Reporting
-            </h5>
+            </h3>
             <div className="flex items-center gap-2">
               <a
                 href={`tel:${CYBERCRIME_HELPLINE.number}`}
@@ -55,9 +66,9 @@ export default function Footer({ lang }: FooterProps) {
           </div>
 
           <div className="space-y-1.5">
-            <h5 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
+            <h3 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
               SEBI Registries & Grievance
-            </h5>
+            </h3>
             <ul className="space-y-1.5">
               <li>
                 <a
@@ -96,9 +107,9 @@ export default function Footer({ lang }: FooterProps) {
           </div>
 
           <div className="space-y-1.5">
-            <h5 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
+            <h3 className="font-bold text-console-100 text-xs uppercase tracking-wider font-mono">
               RBI & Cybersecurity
-            </h5>
+            </h3>
             <ul className="space-y-1.5">
               <li>
                 <a
@@ -146,6 +157,54 @@ export default function Footer({ lang }: FooterProps) {
             </strong>
             {t.disclaimerText}
           </p>
+        </div>
+
+        {/* Compliance & Grievance Bar */}
+        <div className="pt-4 border-t border-console-700/60 flex flex-col md:flex-row items-center justify-between gap-3 text-[11px] text-slate-500">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="font-semibold text-slate-700">
+              {lang === 'hi' ? 'सांविधिक अनुपालन:' : 'Statutory Compliance:'}
+            </span>
+            <span className="inline-flex items-center gap-1 text-slate-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              DPDP Act 2023 (Zero-DB)
+            </span>
+            <span className="text-slate-300">•</span>
+            <span className="inline-flex items-center gap-1 text-slate-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+              IT Act 2000 (Sec 79 Safe Harbor)
+            </span>
+            <span className="text-slate-300">•</span>
+            <span className="inline-flex items-center gap-1 text-slate-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+              SEBI RIA Regs 2013 (Non-Advisory)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Link
+              href="/about"
+              className="text-slate-600 hover:text-[#004A87] font-semibold hover:underline"
+            >
+              {lang === 'hi' ? 'परिचय' : 'About'}
+            </Link>
+            {onOpenTerms && (
+              <button
+                onClick={onOpenTerms}
+                className="text-[#004A87] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <Scale className="w-3.5 h-3.5" />
+                <span>{lang === 'hi' ? 'सेवा की शर्तें व अस्वीकरण' : 'Terms & Legal Disclaimer'}</span>
+              </button>
+            )}
+            <a
+              href="mailto:contact@scamshieldbharat.live"
+              className="text-slate-600 hover:text-slate-900 flex items-center gap-1 hover:underline"
+            >
+              <Mail className="w-3.5 h-3.5 text-slate-400" />
+              <span>Grievance / Contact</span>
+            </a>
+          </div>
         </div>
 
         {/* Copyright & Badges */}

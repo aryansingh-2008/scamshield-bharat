@@ -16,7 +16,12 @@ import {
   RefreshCw,
   User,
 } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
+import {
+  useAuth,
+  MASTER_ADMIN_USER,
+  PRESIDENT_USER,
+} from '@/lib/auth-context';
+import { findCitizenForLogin } from '@/lib/user-registry';
 
 function LoginContent() {
   const router = useRouter();
@@ -64,15 +69,25 @@ function LoginContent() {
     router.push(redirectPath);
   };
 
-  // Safe validation for Indian mobile numbers (10 digits starting with 6-9) or emails
+  // Safe validation for Indian mobile numbers (10 digits starting with 6-9), emails, or official executive IDs
   const validateIdentifier = (val: string): { isValid: boolean; error: string; errorHi: string } => {
     const cleaned = val.trim();
     if (!cleaned) {
       return {
         isValid: false,
-        error: 'Please enter your mobile number or email address.',
-        errorHi: 'कृपया अपना मोबाइल नंबर या ईमेल पता दर्ज करें।',
+        error: 'Please enter your mobile number, email, or official ID.',
+        errorHi: 'कृपया अपना मोबाइल नंबर, ईमेल पता या आधिकारिक ID दर्ज करें।',
       };
+    }
+
+    const cleanLower = cleaned.toLowerCase();
+    if (
+      cleanLower === 'admin' ||
+      cleanLower === 'arti' ||
+      cleanLower === 'president' ||
+      cleanLower.startsWith('ssb-')
+    ) {
+      return { isValid: true, error: '', errorHi: '' };
     }
 
     if (cleaned.includes('@')) {
@@ -138,20 +153,48 @@ function LoginContent() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      login({
-        name: identifier.includes('@')
-          ? identifier.split('@')[0]
-          : `Citizen +91 ***${identifier.replace(/\D/g, '').slice(-4)}`,
-        emailOrPhone: identifier,
-        role: 'investor',
-        designation: 'Verified Account Holder',
-        organization: 'ScamShield Bharat',
-        verified: true,
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: identifier.trim(),
+        password: password.trim(),
+      }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, status: res.status, data })))
+      .then(({ ok, data }) => {
+        setIsSubmitting(false);
+        if (!ok) {
+          if (data.code === 'ACCOUNT_NOT_FOUND') {
+            setAuthError(
+              isHindi
+                ? 'खाता नहीं मिला। कृपया "नया खाता बनाएं" (Sign Up) पर जाकर नया खाता बनाएं।'
+                : 'Account not found. Please create an account using Sign Up.'
+            );
+          } else {
+            setAuthError(data.error || (isHindi ? 'अमान्य क्रेडेंशियल्स।' : 'Authentication failed. Please check your credentials.'));
+          }
+          refreshCaptcha();
+          return;
+        }
+
+        const authenticatedUser = data.user;
+        login(authenticatedUser);
+
+        if (authenticatedUser.role === 'admin') {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('scamshield_admin_authenticated', 'true');
+          }
+          router.push(redirectPath === '/' ? '/admin' : redirectPath);
+        } else {
+          router.push(redirectPath);
+        }
+      })
+      .catch(() => {
+        setIsSubmitting(false);
+        setAuthError(isHindi ? 'सर्वर से संपर्क करने में त्रुटि।' : 'Connection error during authentication.');
+        refreshCaptcha();
       });
-      setIsSubmitting(false);
-      router.push(redirectPath);
-    }, 500);
   };
 
   // ========================================================
@@ -206,18 +249,33 @@ function LoginContent() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      login({
+    fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: signupContact.trim(),
+        password: signupPassword.trim(),
         name: signupName.trim(),
-        emailOrPhone: signupContact.trim(),
-        role: 'investor',
-        designation: 'Verified Citizen Member',
-        organization: 'ScamShield Bharat',
-        verified: true,
+        isSignup: true,
+      }),
+    })
+      .then((res) => res.json().then((data) => ({ ok: res.ok, status: res.status, data })))
+      .then(({ ok, data }) => {
+        setIsSubmitting(false);
+        if (!ok) {
+          setAuthError(data.error || (isHindi ? 'पंजीकरण विफल।' : 'Registration failed.'));
+          refreshCaptcha();
+          return;
+        }
+
+        login(data.user);
+        router.push(redirectPath);
+      })
+      .catch(() => {
+        setIsSubmitting(false);
+        setAuthError(isHindi ? 'सर्वर से संपर्क करने में त्रुटि।' : 'Connection error during registration.');
+        refreshCaptcha();
       });
-      setIsSubmitting(false);
-      router.push(redirectPath);
-    }, 500);
   };
 
   return (

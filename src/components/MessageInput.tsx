@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowRight, Trash2, AlertCircle } from 'lucide-react';
+import { ArrowRight, Trash2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { TRANSLATIONS } from '@/lib/translations';
 
 interface MessageInputProps {
@@ -33,6 +33,16 @@ export default function MessageInput({ lang, onAnalyze, isLoading }: MessageInpu
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3.5">
+      {/* Privacy Guard Notice */}
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-600 font-sans">
+        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+        <span className="leading-snug">
+          {lang === 'hi'
+            ? 'नागरिक सुरक्षा निर्देश: अपना व्यक्तिगत पासवर्ड, बैंक ओटीपी या निजी पिन कभी साझा न करें।'
+            : 'Privacy Guardrail: Never enter or paste real passwords, bank OTPs, or private PINs.'}
+        </span>
+      </div>
+
       {/* Textarea Box */}
       <div className="relative rounded-xl border border-slate-200 bg-white p-3.5 focus-within:border-[#004A87] focus-within:ring-2 focus-within:ring-[#004A87]/15 transition-all flex flex-col justify-between min-h-[140px] shadow-xs">
         <label htmlFor="message-text" className="sr-only">
