@@ -9,6 +9,10 @@ export interface ServerSessionPayload {
   designation?: string;
   organization?: string;
   verified: boolean;
+  credits?: number;
+  isUnlimited?: boolean;
+  unlimitedExpiresAt?: number | null;
+  planType?: 'free' | 'sachet' | 'pro' | 'annual';
   jti?: string; // Unique 16-byte Cryptographic JWT Token ID
   iat: number; // Issued at (seconds)
   exp: number; // Expiry (seconds)

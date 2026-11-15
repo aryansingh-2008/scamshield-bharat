@@ -45,7 +45,7 @@ import {
 } from 'lucide-react';
 
 export default function HomePage() {
-  const { user, isSkipped, skipLogin, consumeCredit, credits, isUnlimited } = useAuth();
+  const { user, isSkipped, skipLogin, consumeCredit, credits, isUnlimited, syncCreditsFromServer } = useAuth();
   const [lang, setLang] = useState<'en' | 'hi'>('en');
   const isHindi = lang === 'hi';
   const [currentView, setCurrentView] = useState<'home' | 'sources'>('home');
@@ -139,9 +139,14 @@ export default function HomePage() {
       const data = await response.json();
       if (!response.ok) {
         if (response.status === 402) {
+          syncCreditsFromServer(0);
           setIsRechargeOpen(true);
         }
         throw new Error(data.error || defaultErrorMessage);
+      }
+
+      if (data && typeof data.creditsRemaining === 'number') {
+        syncCreditsFromServer(data.creditsRemaining, data.isUnlimited);
       }
 
       setAnalysisResult(data);

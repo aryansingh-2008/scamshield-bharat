@@ -10,12 +10,12 @@ export interface RegisteredCitizen {
   credits: number;
   isUnlimited: boolean;
   unlimitedExpiresAt?: number | null; // epoch timestamp
+  premiumStartedAt?: string | null;
   planType: 'free' | 'sachet' | 'pro' | 'annual';
   registeredAt: string; // ISO date
   lastActiveAt: string;
   totalScans: number;
   isVerified: boolean;
-  password?: string; // Appointed member login password / passkey
 }
 
 export interface UtrTransaction {
@@ -255,7 +255,9 @@ export function syncCurrentUserToRegistry(user: {
   organization?: string;
   credits?: number;
   isUnlimited?: boolean;
-}): RegisteredCitizen {
+  unlimitedExpiresAt?: number | null;
+  planType?: 'free' | 'sachet' | 'pro' | 'annual';
+}, allowCreate: boolean = false): RegisteredCitizen | null {
   const citizens = getAllCitizens();
   const targetUid = user.uid || generateCitizenId();
 
@@ -263,30 +265,38 @@ export function syncCurrentUserToRegistry(user: {
     (c) => c.uid === targetUid || c.emailOrPhone === user.emailOrPhone || c.name === user.name
   );
 
+  if (existingIdx < 0 && !allowCreate) {
+    // Prohibit silent creation during unverified operations or failed logins
+    return null;
+  }
+
+  const existing = existingIdx >= 0 ? citizens[existingIdx] : null;
+  const now = Date.now();
+
+  const isUnlimitedActive = user.isUnlimited !== undefined
+    ? user.isUnlimited
+    : (existing ? existing.isUnlimited && (!existing.unlimitedExpiresAt || existing.unlimitedExpiresAt > now) : false);
+
+  const expiry = user.unlimitedExpiresAt !== undefined
+    ? user.unlimitedExpiresAt
+    : (existing ? existing.unlimitedExpiresAt : (isUnlimitedActive ? now + 30 * 24 * 60 * 60 * 1000 : null));
+
+  const plan = user.planType || (existing ? existing.planType : (isUnlimitedActive ? 'pro' : 'free'));
+
   const updatedCitizen: RegisteredCitizen = {
-    uid: existingIdx >= 0 ? citizens[existingIdx].uid : targetUid,
+    uid: existing ? existing.uid : targetUid,
     name: user.name,
     emailOrPhone: user.emailOrPhone || 'citizen@scamshield.live',
     role: user.role,
-    designation: user.designation || 'Verified Citizen Member',
-    organization: user.organization || 'ScamShield Bharat',
-    credits: user.credits ?? (existingIdx >= 0 ? citizens[existingIdx].credits : 5),
-    isUnlimited: user.isUnlimited ?? (existingIdx >= 0 ? citizens[existingIdx].isUnlimited : false),
-    unlimitedExpiresAt:
-      existingIdx >= 0
-        ? citizens[existingIdx].unlimitedExpiresAt
-        : user.isUnlimited
-        ? Date.now() + 30 * 24 * 60 * 60 * 1000
-        : null,
-    planType:
-      existingIdx >= 0
-        ? citizens[existingIdx].planType
-        : user.isUnlimited
-        ? 'pro'
-        : 'free',
-    registeredAt: existingIdx >= 0 ? citizens[existingIdx].registeredAt : new Date().toISOString(),
+    designation: user.designation || (existing ? existing.designation : 'Verified Citizen Member'),
+    organization: user.organization || (existing ? existing.organization : 'ScamShield Bharat'),
+    credits: typeof user.credits === 'number' ? user.credits : (existing ? existing.credits : 5),
+    isUnlimited: isUnlimitedActive,
+    unlimitedExpiresAt: expiry,
+    planType: plan,
+    registeredAt: existing ? existing.registeredAt : new Date().toISOString(),
     lastActiveAt: new Date().toISOString(),
-    totalScans: existingIdx >= 0 ? citizens[existingIdx].totalScans : 0,
+    totalScans: existing ? existing.totalScans : 0,
     isVerified: true,
   };
 
@@ -447,6 +457,59 @@ export function adminAdjustCredits(uid: string, creditsToAdd: number): boolean {
   return true;
 }
 
+// Admin manual Premium allotment with explicit duration and automatic extension
+export function adminAllotPremium(
+  uid: string,
+  days: number
+): { success: boolean; citizen?: RegisteredCitizen; actionType?: 'GRANTED' | 'EXTENDED'; error?: string } {
+  if (typeof days !== 'number' || !Number.isInteger(days) || days <= 0 || days > 3650) {
+    return { success: false, error: 'Days must be an integer between 1 and 3650.' };
+  }
+
+  const citizens = getAllCitizens();
+  const citizen = citizens.find((c) => c.uid === uid);
+  if (!citizen) return { success: false, error: 'Citizen not found.' };
+
+  const now = Date.now();
+  const currentExpiry = citizen.unlimitedExpiresAt;
+  const isCurrentlyActive = citizen.isUnlimited && typeof currentExpiry === 'number' && currentExpiry > now;
+
+  let newExpiry: number;
+  let actionType: 'GRANTED' | 'EXTENDED';
+
+  if (isCurrentlyActive && currentExpiry) {
+    actionType = 'EXTENDED';
+    newExpiry = currentExpiry + days * 24 * 60 * 60 * 1000;
+  } else {
+    actionType = 'GRANTED';
+    newExpiry = now + days * 24 * 60 * 60 * 1000;
+    citizen.premiumStartedAt = new Date(now).toISOString();
+  }
+
+  citizen.isUnlimited = true;
+  citizen.unlimitedExpiresAt = newExpiry;
+  citizen.planType = days >= 365 ? 'annual' : 'pro';
+  citizen.lastActiveAt = new Date().toISOString();
+
+  saveCitizens(citizens);
+
+  // Sync active user session if current browser matches
+  if (typeof window !== 'undefined') {
+    try {
+      const rawUser = localStorage.getItem('scamshield_user_session');
+      if (rawUser) {
+        const activeUser = JSON.parse(rawUser);
+        if (activeUser.uid === citizen.uid || activeUser.emailOrPhone === citizen.emailOrPhone) {
+          localStorage.setItem('scamshield_unlimited_expiry', newExpiry.toString());
+          window.dispatchEvent(new Event('scamshield_subscription_updated'));
+        }
+      }
+    } catch {}
+  }
+
+  return { success: true, citizen, actionType };
+}
+
 // Admin manual subscription activation
 export function adminSetSubscription(
   uid: string,
@@ -519,7 +582,6 @@ export function adminAppointPost(
     organization?: string;
     credits?: number;
     isUnlimited?: boolean;
-    password?: string;
   }
 ): { success: boolean; message: string; updatedCitizen?: RegisteredCitizen } {
   const citizens = getAllCitizens();
@@ -543,9 +605,6 @@ export function adminAppointPost(
   citizen.designation = updates.designation.trim() || citizen.designation;
   if (updates.organization) citizen.organization = updates.organization.trim();
   if (updates.credits !== undefined) citizen.credits = updates.credits;
-  if (updates.password && updates.password.trim()) {
-    citizen.password = updates.password.trim();
-  }
   if (updates.isUnlimited !== undefined) {
     citizen.isUnlimited = updates.isUnlimited;
     if (updates.isUnlimited) {
@@ -572,7 +631,6 @@ export function adminCreateCitizen(data: {
   organization?: string;
   isUnlimited?: boolean;
   credits?: number;
-  password?: string;
 }): RegisteredCitizen {
   const citizens = getAllCitizens();
   const newUid = generateCitizenId();
@@ -594,7 +652,6 @@ export function adminCreateCitizen(data: {
     lastActiveAt: new Date().toISOString(),
     totalScans: 0,
     isVerified: true,
-    password: data.password?.trim() || undefined,
   };
 
   citizens.unshift(newCitizen);

@@ -25,6 +25,7 @@ interface AuthContextType {
   isUnlimited: boolean;
   consumeCredit: () => boolean;
   addCredits: (amount: number) => void;
+  syncCreditsFromServer: (amount: number, isUnlimited?: boolean) => void;
   activateUnlimited: (days: number) => void;
   login: (profile: UserProfile) => void;
   updateUser: (updated: Partial<UserProfile>) => void;
@@ -33,7 +34,7 @@ interface AuthContextType {
   skipLogin: () => void;
   logout: () => void;
   resetAuth: () => void;
-  refreshSubscription: () => void;
+  refreshSubscription: () => Promise<void> | void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -104,7 +105,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .then((res) => res.json())
         .then((data) => {
           if (data?.authenticated && data?.user) {
-            setUser((prev) => prev || data.user);
+            const serverUser: UserProfile = data.user;
+            setUser(serverUser);
+            if (typeof serverUser.credits === 'number') {
+              setCredits(serverUser.credits);
+            }
+            if (serverUser.isUnlimited !== undefined) {
+              setIsUnlimited(Boolean(serverUser.isUnlimited));
+              if (serverUser.isUnlimited) {
+                localStorage.setItem(STORAGE_KEY_UNLIMITED, 'true');
+              } else {
+                localStorage.removeItem(STORAGE_KEY_UNLIMITED);
+              }
+            }
+            try {
+              localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(serverUser));
+              if (typeof serverUser.credits === 'number') {
+                localStorage.setItem(STORAGE_KEY_CREDITS, serverUser.credits.toString());
+              }
+            } catch {}
+            syncCurrentUserToRegistry(serverUser);
           }
         })
         .catch(() => {});
@@ -165,24 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const handleSubscriptionUpdate = () => {
-      try {
-        const savedUser = localStorage.getItem(STORAGE_KEY_USER);
-        if (!savedUser) {
-          setIsUnlimited(false);
-          return;
-        }
-        const parsed: UserProfile = JSON.parse(savedUser);
-        const allCitizens = getAllCitizens();
-        const myRecord = allCitizens.find((c) => c.uid === parsed.uid);
-        if (myRecord && myRecord.isUnlimited) {
-          setIsUnlimited(true);
-        } else {
-          setIsUnlimited(false);
-        }
-        if (myRecord && typeof myRecord.credits === 'number') {
-          setCredits(myRecord.credits);
-        }
-      } catch {}
+      refreshSubscription();
     };
 
     window.addEventListener('scamshield_subscription_updated', handleSubscriptionUpdate);
@@ -196,8 +199,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const refreshSubscription = () => {
+  const refreshSubscription = async () => {
     try {
+      // 1. Authoritative check from server session endpoint
+      const res = await fetch('/api/auth/session').catch(() => null);
+      if (res && res.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.authenticated && data?.user) {
+          const sUser: UserProfile = data.user;
+          setUser(sUser);
+          if (typeof sUser.credits === 'number') {
+            setCredits(sUser.credits);
+            localStorage.setItem(STORAGE_KEY_CREDITS, sUser.credits.toString());
+          }
+          if (sUser.isUnlimited !== undefined) {
+            setIsUnlimited(Boolean(sUser.isUnlimited));
+            if (sUser.isUnlimited) {
+              localStorage.setItem(STORAGE_KEY_UNLIMITED, 'true');
+            } else {
+              localStorage.removeItem(STORAGE_KEY_UNLIMITED);
+            }
+          }
+          try {
+            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sUser));
+          } catch {}
+          syncCurrentUserToRegistry(sUser);
+          return;
+        }
+      }
+
+      // 2. Fallback to local registry
       const savedUser = localStorage.getItem(STORAGE_KEY_USER);
       if (!savedUser) {
         setIsUnlimited(false);
@@ -206,10 +237,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const parsed: UserProfile = JSON.parse(savedUser);
       const allCitizens = getAllCitizens();
       const myRecord = allCitizens.find((c) => c.uid === parsed.uid);
-      if (parsed.role === 'admin' || (myRecord && myRecord.isUnlimited)) {
-        setIsUnlimited(true);
+      const now = Date.now();
+      const isUnlimitedActive = Boolean(
+        parsed.role === 'admin' ||
+        parsed.isUnlimited ||
+        (myRecord && myRecord.isUnlimited && (!myRecord.unlimitedExpiresAt || myRecord.unlimitedExpiresAt > now))
+      );
+      setIsUnlimited(isUnlimitedActive);
+      if (isUnlimitedActive) {
+        localStorage.setItem(STORAGE_KEY_UNLIMITED, 'true');
       } else {
-        setIsUnlimited(false);
+        localStorage.removeItem(STORAGE_KEY_UNLIMITED);
       }
       if (myRecord && typeof myRecord.credits === 'number') {
         setCredits(myRecord.credits);
@@ -228,14 +266,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       recordDeviceFreeScanUsed();
     }
 
-    const next = credits - 1;
+    const next = Math.max(0, credits - 1);
     setCredits(next);
     try {
       localStorage.setItem(STORAGE_KEY_CREDITS, next.toString());
     } catch (e) {
       console.warn('Failed to update credits', e);
     }
+    if (user) {
+      syncCurrentUserToRegistry({ ...user, credits: next });
+    }
     return true;
+  };
+
+  const syncCreditsFromServer = (amount: number, serverIsUnlimited?: boolean) => {
+    if (typeof amount !== 'number' || isNaN(amount)) return;
+    const cleanAmount = Math.max(0, amount);
+    setCredits(cleanAmount);
+    if (serverIsUnlimited !== undefined) {
+      setIsUnlimited(Boolean(serverIsUnlimited));
+      if (serverIsUnlimited) {
+        localStorage.setItem(STORAGE_KEY_UNLIMITED, 'true');
+      } else {
+        localStorage.removeItem(STORAGE_KEY_UNLIMITED);
+      }
+    }
+    try {
+      localStorage.setItem(STORAGE_KEY_CREDITS, cleanAmount.toString());
+    } catch {}
+    if (user) {
+      syncCurrentUserToRegistry({
+        ...user,
+        credits: cleanAmount,
+        isUnlimited: serverIsUnlimited !== undefined ? serverIsUnlimited : user.isUnlimited,
+      });
+    }
   };
 
   const addCredits = (amount: number) => {
@@ -275,28 +340,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Look up in central registry for admin-verified status
     const allC = getAllCitizens();
     const existing = allC.find((c) => c.uid === withUid.uid || c.emailOrPhone === withUid.emailOrPhone);
+    const now = Date.now();
 
-    if (withUid.role === 'admin' || (existing && existing.isUnlimited)) {
+    const hasActiveUnlimited = Boolean(
+      withUid.role === 'admin' ||
+      withUid.isUnlimited ||
+      (existing && existing.isUnlimited && (!existing.unlimitedExpiresAt || existing.unlimitedExpiresAt > now))
+    );
+
+    if (hasActiveUnlimited) {
       setIsUnlimited(true);
+      localStorage.setItem(STORAGE_KEY_UNLIMITED, 'true');
     } else {
       setIsUnlimited(false);
       localStorage.removeItem(STORAGE_KEY_UNLIMITED);
     }
 
-    // Allocate credits: if existing has credits, use them. If new user, cap by device ledger!
+    // Allocate credits: prioritize profile from server, then existing registry, then device ledger
     const deviceLedger = getDeviceTrialLedger();
     const remainingDeviceFreeScans = Math.max(0, MAX_DEVICE_FREE_SCANS - deviceLedger.freeScansUsed);
-    const assignedCredits = existing ? existing.credits : remainingDeviceFreeScans;
+    const assignedCredits = typeof withUid.credits === 'number'
+      ? withUid.credits
+      : (existing && typeof existing.credits === 'number' ? existing.credits : remainingDeviceFreeScans);
+
     setCredits(assignedCredits);
 
     try {
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(withUid));
+      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify({ ...withUid, isUnlimited: hasActiveUnlimited, credits: assignedCredits }));
       localStorage.setItem(STORAGE_KEY_CREDITS, assignedCredits.toString());
       localStorage.removeItem(STORAGE_KEY_SKIPPED);
     } catch (e) {
       console.warn('Failed to save user', e);
     }
-    syncCurrentUserToRegistry({ ...withUid, credits: assignedCredits });
+    syncCurrentUserToRegistry({ ...withUid, isUnlimited: hasActiveUnlimited, credits: assignedCredits });
   };
 
   const updateUser = (updated: Partial<UserProfile>) => {
@@ -417,6 +493,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isUnlimited: isActuallyUnlimited,
         consumeCredit,
         addCredits,
+        syncCreditsFromServer,
         activateUnlimited,
         login,
         updateUser,

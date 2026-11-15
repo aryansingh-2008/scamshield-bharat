@@ -24,6 +24,29 @@ export const MIN_PASSKEY_LENGTH_STRONG = 32;
 export const MIN_PIN_LENGTH = 6;
 
 /**
+ * Cryptographic SHA-256 digests of previously disclosed / compromised credentials.
+ * Even if an attacker or misconfigured environment attempts to supply these,
+ * the server rejects them unconditionally with CREDENTIAL_REVOKED_COMPROMISED.
+ */
+export const REVOKED_COMPROMISED_PASSKEY_HASHES = new Set<string>([
+  '975d60f3f0fd6db7f3616a2fcedd1078314296f2e63d2b863610b374ceb2d938', // Disclosed Master Passkey
+  '8cc95cdd60846ef9efc303171aa1db5a8a18a908b9e66ac0d302eed1d71610e8', // Disclosed President Passkey
+  '04123abd74e25d1da1ffdddf32ce13c452a941000dbfc04525f97e23f9bed738', // Disclosed Chief Admin Passkey
+  '41274dfd0d221a8812fb46c5c564c2c0c5e4b37f548fb67dd1e3516bd9670dd4', // Lowercase variation
+  '97d1adff0dc5f6587b3487d50fdf3ec857bb3115b847df740d2b93b5e038eed5', // Lowercase variation
+  'be15dc7be1854e9a6b4eed33ede7e9769273ffa040ba0c9bba42238039169830', // Lowercase variation
+]);
+
+export function isCompromisedPasskey(candidate: string | null | undefined): boolean {
+  if (!candidate || typeof candidate !== 'string') return false;
+  const clean = candidate.trim();
+  if (!clean) return false;
+  const hashExact = crypto.createHash('sha256').update(clean, 'utf-8').digest('hex');
+  const hashLower = crypto.createHash('sha256').update(clean.toLowerCase(), 'utf-8').digest('hex');
+  return REVOKED_COMPROMISED_PASSKEY_HASHES.has(hashExact) || REVOKED_COMPROMISED_PASSKEY_HASHES.has(hashLower);
+}
+
+/**
  * Validates the cryptographic strength and entropy of a privileged passkey.
  *
  * Rules:
@@ -31,6 +54,7 @@ export const MIN_PIN_LENGTH = 6;
  * - Length 12..31: Valid for legacy backwards compatibility, but flagged as not meeting strong standard.
  * - Length >= 32: Evaluates character variety and randomness. Must contain at least 3 character classes
  *   (uppercase, lowercase, numbers, symbols) or base64/hex token entropy.
+ * - Compromised / Disclosed Passkeys: REJECTED immediately.
  */
 export function validatePrivilegedPasskeyStrength(passkey: string | null | undefined): {
   valid: boolean;
@@ -43,6 +67,14 @@ export function validatePrivilegedPasskeyStrength(passkey: string | null | undef
   }
 
   const clean = passkey.trim();
+  if (isCompromisedPasskey(clean)) {
+    return {
+      valid: false,
+      isStrong: false,
+      error: 'COMPROMISED_CREDENTIAL_REJECTED: This passkey has been revoked due to security compromise and cannot be used.',
+    };
+  }
+
   if (clean.length < MIN_PASSKEY_LENGTH_LEGACY) {
     return {
       valid: false,
@@ -118,6 +150,11 @@ export function verifyServerPresidentPasskey(candidate: string | null | undefine
 
   // Enforce: Standalone PIN cannot grant executive access
   if (isPinOnlyCandidate(clean)) {
+    return false;
+  }
+
+  // Enforce: Revoked/disclosed credentials cannot authenticate
+  if (isCompromisedPasskey(clean)) {
     return false;
   }
 
@@ -247,6 +284,11 @@ export function verifyServerAdminPasskey(candidate: string | null | undefined): 
     return false;
   }
 
+  // Enforce: Revoked/disclosed credentials cannot authenticate
+  if (isCompromisedPasskey(clean)) {
+    return false;
+  }
+
   // 1. If in-memory custom passkey is set, it strictly supersedes the default env passkey
   if (inMemoryCustomAdminPasskey) {
     const candidateHash = computePasskeyHash(clean, inMemoryCustomAdminPasskey.salt);
@@ -268,6 +310,11 @@ export async function verifyServerAdminPasskeyAsync(candidate: string | null | u
 
   // Enforce: Standalone PIN cannot grant executive access
   if (isPinOnlyCandidate(clean)) {
+    return false;
+  }
+
+  // Enforce: Revoked/disclosed credentials cannot authenticate
+  if (isCompromisedPasskey(clean)) {
     return false;
   }
 
@@ -370,6 +417,16 @@ export function authenticatePrivilegedCredentials(
     };
   }
 
+  // Reject revoked / compromised credentials
+  if (isCompromisedPasskey(cleanSecret)) {
+    return {
+      valid: false,
+      user: null,
+      error: 'Access Denied: This administrative credential has been revoked due to security compromise. Please use rotated credentials.',
+      code: 'CREDENTIAL_REVOKED_COMPROMISED',
+    };
+  }
+
   const cleanIdent = (identifier || '').toLowerCase().trim();
 
   const isPresidentIdent =
@@ -442,6 +499,16 @@ export async function authenticatePrivilegedCredentialsAsync(
       user: null,
       error: 'Secret passkey is required.',
       code: 'MISSING_CREDENTIALS',
+    };
+  }
+
+  // Reject revoked / compromised credentials
+  if (isCompromisedPasskey(cleanSecret)) {
+    return {
+      valid: false,
+      user: null,
+      error: 'Access Denied: This administrative credential has been revoked due to security compromise. Please use rotated credentials.',
+      code: 'CREDENTIAL_REVOKED_COMPROMISED',
     };
   }
 

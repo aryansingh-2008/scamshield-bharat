@@ -182,6 +182,16 @@ export default function ImageUploader({
           </div>
         )}
 
+        {/* DPDP Act 2023 Privacy Guarantee & Ephemeral Retention Notice */}
+        <div className="flex items-start gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] text-slate-500 leading-tight">
+          <span className="font-bold text-slate-700 shrink-0">🛡️ {lang === 'hi' ? 'गोपनीयता नियम:' : 'DPDP 2023 Privacy:'}</span>
+          <span>
+            {lang === 'hi'
+              ? 'स्क्रीनशॉट केवल OCR टेक्स्ट निष्कर्षण के लिए मेमोरी (RAM) में अस्थायी रूप से संसाधित होता है। इमेज को कभी भी डिस्क या डेटाबेस में सेव नहीं किया जाता।'
+              : 'Screenshots are processed ephemerally in RAM for optical character extraction under DPDP Act 2023. Images are never stored, logged, or retained on servers.'}
+          </span>
+        </div>
+
         {/* Button Placed Below Full Width */}
         <button
           type="submit"

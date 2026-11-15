@@ -8,19 +8,26 @@ import {
   checkAccountLockout,
   recordFailedAuthAttempt,
   clearFailedAuthAttempts,
-} from '@/lib/server-auth';
+} from '../../../../lib/server-auth';
 import {
   MASTER_ADMIN_USER,
   PRESIDENT_USER,
   DEMO_USERS,
   generateCitizenId,
-} from '@/lib/auth-constants';
+  normalizeCitizenIdentifier,
+  UserProfile,
+} from '../../../../lib/auth-constants';
 import {
   verifyServerPresidentPasskey,
   verifyServerAdminPasskey,
   verifyServerAdminPasskeyAsync,
   isPinOnlyCandidate,
-} from '@/lib/server-admin-auth';
+  isCompromisedPasskey,
+} from '../../../../lib/server-admin-auth';
+import {
+  createCitizenAccountAsync,
+  verifyCitizenLoginAsync,
+} from '../../../../lib/server-citizen-auth';
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,7 +39,7 @@ export async function POST(req: NextRequest) {
     const clientIp = forwardedFor ? forwardedFor.split(',')[0].trim() : '127.0.0.1';
 
     const body = await req.json();
-    const { identifier, password, isDemo, demoType } = body;
+    const { identifier, password, isDemo, demoType, isSignup, name } = body;
 
     // 1. Handle Demo Login
     if (isDemo && demoType) {
@@ -65,7 +72,7 @@ export async function POST(req: NextRequest) {
       return response;
     }
 
-    const cleanIdent = (identifier || '').toLowerCase().trim();
+    const cleanIdent = normalizeCitizenIdentifier(identifier);
     const cleanPass = (password || '').trim();
 
     if (!cleanIdent) {
@@ -129,6 +136,18 @@ export async function POST(req: NextRequest) {
           {
             error: 'Access Denied: A numeric PIN cannot be used as the sole administrative authentication factor. Master Security Passkey is required.',
             code: 'SOLE_PIN_DISALLOWED',
+          },
+          { status: 401 }
+        );
+      }
+
+      // Enforcement D: Reject revoked / compromised credentials immediately
+      if (isCompromisedPasskey(cleanPass)) {
+        await recordFailedAuthAttempt(cleanIdent, clientIp);
+        return NextResponse.json(
+          {
+            error: 'Access Denied: This administrative credential has been revoked due to security compromise. Please use rotated credentials.',
+            code: 'CREDENTIAL_REVOKED_COMPROMISED',
           },
           { status: 401 }
         );
@@ -235,21 +254,93 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const assignedUid = generateCitizenId();
-    const citizenUser = {
-      uid: assignedUid,
-      name:
-        cleanIdent.includes('@')
-          ? cleanIdent.split('@')[0]
-          : `Citizen +91 ***${cleanIdent.replace(/\D/g, '').slice(-4)}`,
-      emailOrPhone: cleanIdent,
-      role: 'investor' as const,
-      designation: 'Verified Citizen Member',
-      organization: 'ScamShield Bharat',
-      verified: true,
-    };
+    let citizenUser: UserProfile & { uid: string };
 
-    const token = signSessionToken(citizenUser);
+    if (isSignup) {
+      const createResult = await createCitizenAccountAsync({
+        identifier: cleanIdent,
+        password: cleanPass,
+        name: (name || '').trim(),
+      });
+
+      if (!createResult.success || !createResult.citizen) {
+        return NextResponse.json(
+          {
+            error: createResult.error || 'Failed to create citizen account.',
+            code: createResult.code,
+          },
+          { status: createResult.code === 'ACCOUNT_ALREADY_EXISTS' ? 409 : 400 }
+        );
+      }
+
+      const now = Date.now();
+      const isUnlimitedActive = Boolean(
+        createResult.citizen.role === 'admin' ||
+        (createResult.citizen.isUnlimited &&
+          (!createResult.citizen.unlimitedExpiresAt || createResult.citizen.unlimitedExpiresAt > now))
+      );
+
+      citizenUser = {
+        uid: createResult.citizen.uid,
+        name: createResult.citizen.name,
+        emailOrPhone: createResult.citizen.normalizedIdentifier,
+        role: createResult.citizen.role,
+        designation: createResult.citizen.designation,
+        organization: createResult.citizen.organization,
+        verified: true,
+        credits: createResult.citizen.credits,
+        isUnlimited: isUnlimitedActive,
+        unlimitedExpiresAt: createResult.citizen.unlimitedExpiresAt,
+        planType: createResult.citizen.planType,
+      };
+    } else {
+      const verifyResult = await verifyCitizenLoginAsync(cleanIdent, cleanPass);
+
+      if (!verifyResult.success || !verifyResult.citizen) {
+        return NextResponse.json(
+          {
+            error: verifyResult.error || 'Authentication failed. Please verify your credentials.',
+            code: verifyResult.code,
+          },
+          { status: verifyResult.code === 'ACCOUNT_NOT_FOUND' ? 404 : 401 }
+        );
+      }
+
+      const now = Date.now();
+      const isUnlimitedActive = Boolean(
+        verifyResult.citizen.role === 'admin' ||
+        (verifyResult.citizen.isUnlimited &&
+          (!verifyResult.citizen.unlimitedExpiresAt || verifyResult.citizen.unlimitedExpiresAt > now))
+      );
+
+      citizenUser = {
+        uid: verifyResult.citizen.uid,
+        name: verifyResult.citizen.name,
+        emailOrPhone: verifyResult.citizen.normalizedIdentifier,
+        role: verifyResult.citizen.role,
+        designation: verifyResult.citizen.designation,
+        organization: verifyResult.citizen.organization,
+        verified: true,
+        credits: verifyResult.citizen.credits,
+        isUnlimited: isUnlimitedActive,
+        unlimitedExpiresAt: verifyResult.citizen.unlimitedExpiresAt,
+        planType: verifyResult.citizen.planType,
+      };
+    }
+
+    const token = signSessionToken({
+      uid: citizenUser.uid,
+      name: citizenUser.name,
+      emailOrPhone: citizenUser.emailOrPhone,
+      role: citizenUser.role,
+      designation: citizenUser.designation,
+      organization: citizenUser.organization,
+      verified: true,
+      credits: citizenUser.credits,
+      isUnlimited: citizenUser.isUnlimited,
+      unlimitedExpiresAt: citizenUser.unlimitedExpiresAt,
+      planType: citizenUser.planType,
+    });
 
     const response = NextResponse.json({
       success: true,

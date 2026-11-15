@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AnalyzeRequestSchema } from '@/lib/schema';
-import { analyzeFinancialContent } from '@/lib/ai-analyzer';
+import { analyzeFinancialContent, extractTextFromScreenshot } from '@/lib/ai-analyzer';
 import { validateImageUpload } from '@/lib/file-security';
 import { validateAndParseUrl } from '@/lib/url-security';
 import { checkRateLimit, checkIpFreeQuota, recordIpFreeScan } from '@/lib/rate-limiter';
@@ -13,8 +13,12 @@ import {
   SESSION_COOKIE_NAME,
   GUEST_QUOTA_COOKIE_NAME,
 } from '@/lib/server-auth';
+import { deductCitizenCreditAsync, refundCitizenCreditAsync } from '@/lib/server-citizen-auth';
 
 export async function POST(req: NextRequest) {
+  let shouldRefundOnFailure = false;
+  let citizenUidToCharge: string | null = null;
+
   try {
     const host = req.headers.get('host') || '';
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
@@ -57,9 +61,36 @@ export async function POST(req: NextRequest) {
 
     let newGuestQuotaCookie: string | null = null;
     let quotaStoreMode: 'authenticated' | 'distributed-redis' | 'local-ledger-fallback' = 'authenticated';
+    let creditsRemaining: number | undefined;
+    let isUnlimitedUser: boolean | undefined = undefined;
 
-    if (!isAuthenticated) {
-      // 3. Multi-Layered Guest Quota Enforcement (5 scans per IP / Device)
+    if (isAuthenticated && authVerification.user) {
+      // 3A. Authenticated Citizen Credit Accounting
+      const isPrivileged = authVerification.user.role === 'admin';
+      if (isPrivileged) {
+        isUnlimitedUser = true;
+        creditsRemaining = 9999;
+      } else {
+        citizenUidToCharge = authVerification.user.uid || authVerification.user.emailOrPhone;
+        const deduction = await deductCitizenCreditAsync(citizenUidToCharge);
+        if (!deduction.success) {
+          return NextResponse.json(
+            {
+              error: 'Insufficient safety credits. Please recharge your account to continue scanning.',
+              errorHi: 'आपके सुरक्षा क्रेडिट्स समाप्त हो चुके हैं। कृपया आगे जांच के लिए रीचार्ज करें।',
+              code: 'INSUFFICIENT_CREDITS',
+              creditsRemaining: 0,
+              requiresRecharge: true,
+            },
+            { status: 402 }
+          );
+        }
+        creditsRemaining = deduction.creditsRemaining;
+        isUnlimitedUser = deduction.isUnlimited;
+        shouldRefundOnFailure = true;
+      }
+    } else {
+      // 3B. Multi-Layered Guest Quota Enforcement (5 scans per IP / Device)
       // Check A: Tamper-proof server-signed cryptographic guest cookie (survives container restarts)
       const rawGuestCookie = req.cookies.get(GUEST_QUOTA_COOKIE_NAME)?.value;
       const guestCookieVerification = verifyGuestQuotaCookie(rawGuestCookie);
@@ -107,13 +138,16 @@ export async function POST(req: NextRequest) {
 
     const contentType = req.headers.get('content-type') || '';
 
-    // 4. Handle Multipart Form Data (Screenshot Upload) with Strict Size Validation
+    // 4. Handle Multipart Form Data (Screenshot Upload) with Strict Size Validation & Multimodal OCR
     if (contentType.includes('multipart/form-data')) {
       const formData = await req.formData();
       const file = formData.get('screenshot') as File | null;
       const textContext = (formData.get('context') as string) || '';
 
       if (!file) {
+        if (shouldRefundOnFailure && citizenUidToCharge) {
+          await refundCitizenCreditAsync(citizenUidToCharge).catch(() => {});
+        }
         return NextResponse.json(
           { error: 'No screenshot file was provided in the upload.' },
           { status: 400 }
@@ -122,6 +156,9 @@ export async function POST(req: NextRequest) {
 
       // Size limit: 5MB
       if (file.size > 5 * 1024 * 1024) {
+        if (shouldRefundOnFailure && citizenUidToCharge) {
+          await refundCitizenCreditAsync(citizenUidToCharge).catch(() => {});
+        }
         return NextResponse.json(
           { error: 'Screenshot file exceeds maximum allowed size (5MB).' },
           { status: 413 }
@@ -137,16 +174,67 @@ export async function POST(req: NextRequest) {
       });
 
       if (!fileValidation.isValid) {
+        if (shouldRefundOnFailure && citizenUidToCharge) {
+          await refundCitizenCreditAsync(citizenUidToCharge).catch(() => {});
+        }
         return NextResponse.json(
           { error: fileValidation.error, errorHi: fileValidation.errorHi },
           { status: 400 }
         );
       }
 
+      // Run Multimodal OCR on screenshot buffer
+      const ocrResult = await extractTextFromScreenshot(buffer, file.type);
+      const extractedText = ocrResult.extractedText.trim();
       const trimmedContext = textContext.trim();
-      const result = await analyzeFinancialContent(trimmedContext, 'screenshot');
+      const combinedContent = [extractedText, trimmedContext].filter(Boolean).join('\n\n');
 
-      const response = NextResponse.json(result, {
+      if (!combinedContent || combinedContent.length < 5) {
+        // Refund credit if the image genuinely had zero extractable text
+        if (shouldRefundOnFailure && citizenUidToCharge) {
+          await refundCitizenCreditAsync(citizenUidToCharge).catch(() => {});
+        }
+        return NextResponse.json(
+          {
+            id: `analysis_${Date.now()}_ocr_empty`,
+            timestamp: new Date().toISOString(),
+            status: 'UNABLE_TO_ASSESS',
+            riskScore: 0,
+            headlineSummary: 'Unable to Assess: No readable text detected in screenshot.',
+            headlineSummaryHi: 'जांच करने में असमर्थ: स्क्रीनशॉट से कोई पठनीय पाठ नहीं मिला।',
+            detailedExplanation:
+              'Could not reliably extract readable financial claims from this image. Please ensure the screenshot is clear and not blurry, or paste the message text directly.',
+            detailedExplanationHi:
+              'इस स्क्रीनशॉट से कोई स्पष्ट पाठ नहीं पढ़ा जा सका। कृपया स्पष्ट स्क्रीनशॉट अपलोड करें या सीधे संदेश टेक्स्ट दर्ज करें।',
+            claims: [],
+            riskSignals: [],
+            evidence: [],
+            uncertaintyFactors: [
+              'Image did not contain legible financial text or claims',
+              'Low image resolution or unreadable font',
+            ],
+            safeNextSteps: [
+              {
+                stepNumber: 1,
+                title: 'Upload Clearer Screenshot',
+                titleHi: 'स्पष्ट स्क्रीनशॉट अपलोड करें',
+                description: 'Take a direct full-screen capture of the message or investment advertisement.',
+                descriptionHi: 'संदेश या विज्ञापन का स्पष्ट फुल-स्क्रीन स्क्रीनशॉट लें।',
+                urgency: 'OPTIONAL',
+              },
+            ],
+            piiRedacted: false,
+            inputMode: 'screenshot',
+            creditsRemaining,
+            isUnlimited: isUnlimitedUser,
+          },
+          { status: 200 }
+        );
+      }
+
+      const result = await analyzeFinancialContent(combinedContent, 'screenshot');
+
+      const response = NextResponse.json({ ...result, creditsRemaining, isUnlimited: isUnlimitedUser }, {
         headers: {
           'X-RateLimit-Remaining': String(rateLimit.remaining),
           'X-Auth-Verified': isAuthenticated ? 'true' : 'false',
@@ -191,6 +279,9 @@ export async function POST(req: NextRequest) {
     const parseResult = AnalyzeRequestSchema.safeParse(body);
 
     if (!parseResult.success) {
+      if (shouldRefundOnFailure && citizenUidToCharge) {
+        await refundCitizenCreditAsync(citizenUidToCharge).catch(() => {});
+      }
       return NextResponse.json(
         {
           error: 'Validation failed',
@@ -206,6 +297,9 @@ export async function POST(req: NextRequest) {
     if (inputMode === 'url') {
       const urlCheck = validateAndParseUrl(content);
       if (!urlCheck.isValid) {
+        if (shouldRefundOnFailure && citizenUidToCharge) {
+          await refundCitizenCreditAsync(citizenUidToCharge).catch(() => {});
+        }
         return NextResponse.json(
           {
             error: urlCheck.error || 'Invalid or prohibited URL address.',
@@ -217,7 +311,7 @@ export async function POST(req: NextRequest) {
 
     const result = await analyzeFinancialContent(content, inputMode, demoId);
 
-    const response = NextResponse.json(result, {
+    const response = NextResponse.json({ ...result, creditsRemaining, isUnlimited: isUnlimitedUser }, {
       headers: {
         'X-RateLimit-Remaining': String(rateLimit.remaining),
         'X-Auth-Verified': isAuthenticated ? 'true' : 'false',
@@ -239,6 +333,9 @@ export async function POST(req: NextRequest) {
 
     return response;
   } catch (error: any) {
+    if (shouldRefundOnFailure && citizenUidToCharge) {
+      await refundCitizenCreditAsync(citizenUidToCharge).catch(() => {});
+    }
     return NextResponse.json(
       {
         error: 'Unable to complete analysis. Please check your message content and try again.',

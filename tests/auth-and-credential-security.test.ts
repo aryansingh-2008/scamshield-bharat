@@ -274,7 +274,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
 
       // 4. Chief Admin Session has full authority
       const chiefAdminSession = {
-        uid: authConstants.MASTER_ADMIN_USER.uid,
+        uid: authConstants.MASTER_ADMIN_USER.uid!,
         name: authConstants.MASTER_ADMIN_USER.name,
         emailOrPhone: authConstants.MASTER_ADMIN_USER.emailOrPhone,
         role: 'admin' as const,
@@ -288,7 +288,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
 
       // 5. President Session cannot execute Chief-Admin-Only actions
       const presidentSession = {
-        uid: authConstants.PRESIDENT_USER.uid,
+        uid: authConstants.PRESIDENT_USER.uid!,
         name: authConstants.PRESIDENT_USER.name,
         emailOrPhone: authConstants.PRESIDENT_USER.emailOrPhone,
         role: 'admin' as const,
@@ -306,7 +306,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
   describe('5. Session Security, Lifetimes & Distributed Revocation', () => {
     it('must enforce a strict 2-hour TTL for administrative sessions and 7 days for citizen sessions', () => {
       const adminToken = signSessionToken({
-        uid: authConstants.MASTER_ADMIN_USER.uid,
+        uid: authConstants.MASTER_ADMIN_USER.uid!,
         name: authConstants.MASTER_ADMIN_USER.name,
         emailOrPhone: authConstants.MASTER_ADMIN_USER.emailOrPhone,
         role: 'admin',
@@ -341,7 +341,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
     it('must invalidate sessions upon logout revocation across simulated instances', async () => {
       // Simulate Instance A: User logs in and receives token
       const token = signSessionToken({
-        uid: authConstants.MASTER_ADMIN_USER.uid,
+        uid: authConstants.MASTER_ADMIN_USER.uid!,
         name: authConstants.MASTER_ADMIN_USER.name,
         emailOrPhone: authConstants.MASTER_ADMIN_USER.emailOrPhone,
         role: 'admin',
@@ -369,7 +369,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       delete process.env.UPSTASH_REDIS_REST_TOKEN;
 
       const adminToken = signSessionToken({
-        uid: authConstants.MASTER_ADMIN_USER.uid,
+        uid: authConstants.MASTER_ADMIN_USER.uid!,
         name: authConstants.MASTER_ADMIN_USER.name,
         emailOrPhone: authConstants.MASTER_ADMIN_USER.emailOrPhone,
         role: 'admin',
@@ -457,7 +457,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
       const origSessionSecret = process.env.SESSION_SECRET;
 
       try {
-        process.env.NODE_ENV = 'production';
+        (process.env as any).NODE_ENV = 'production';
         delete process.env.AUTH_SECRET;
         delete process.env.SESSION_SECRET;
 
@@ -466,7 +466,7 @@ describe('Privileged Credential & Server-Side Security Test Suite', () => {
         process.env.AUTH_SECRET = 'short';
         expect(() => getAuthSecret()).toThrow(/FATAL CONFIGURATION ERROR/);
       } finally {
-        process.env.NODE_ENV = origNodeEnv;
+        (process.env as any).NODE_ENV = origNodeEnv;
         if (origSecret) process.env.AUTH_SECRET = origSecret;
         else delete process.env.AUTH_SECRET;
         if (origSessionSecret) process.env.SESSION_SECRET = origSessionSecret;

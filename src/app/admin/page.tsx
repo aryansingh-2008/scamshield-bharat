@@ -55,6 +55,7 @@ import {
   adminDeleteCitizen,
   adminAppointPost,
   adminCreateCitizen,
+  adminAllotPremium,
   getPlatformAdminStats,
 } from '@/lib/user-registry';
 
@@ -103,6 +104,14 @@ export default function AdminPage() {
   const [selectedCitizenForEdit, setSelectedCitizenForEdit] = useState<RegisteredCitizen | null>(null);
   const [deleteConfirmCitizen, setDeleteConfirmCitizen] = useState<RegisteredCitizen | null>(null);
 
+  // Premium Duration Allotment Modal State
+  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
+  const [premiumTargetCitizen, setPremiumTargetCitizen] = useState<RegisteredCitizen | null>(null);
+  const [selectedDurationOption, setSelectedDurationOption] = useState<number | 'custom'>(30);
+  const [customDaysInput, setCustomDaysInput] = useState<string>('45');
+  const [customDaysError, setCustomDaysError] = useState<string | null>(null);
+  const [isAllottingPremium, setIsAllottingPremium] = useState<boolean>(false);
+
   // Change Admin Passkey State
   const [currentPasskeyInput, setCurrentPasskeyInput] = useState('');
   const [newPasskeyInput, setNewPasskeyInput] = useState('');
@@ -146,16 +155,45 @@ export default function AdminPage() {
   } | null>(null);
   const [slipCopied, setSlipCopied] = useState(false);
 
-  const reloadData = () => {
-    const allC = getAllCitizens();
+  const reloadData = async () => {
+    const localC = getAllCitizens();
     const allT = getAllUtrTransactions();
-    setCitizens(allC);
+    setCitizens(localC);
     setUtrTxns(allT);
     setStats(getPlatformAdminStats());
 
     if (typeof window !== 'undefined') {
       const savedUpi = localStorage.getItem('scamshield_merchant_upi');
       if (savedUpi) setMerchantUpi(savedUpi);
+    }
+
+    // Authoritatively fetch newly registered citizens from server backend
+    try {
+      const res = await fetch('/api/admin/citizens');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.success && Array.isArray(data.citizens)) {
+          const mergedMap = new Map<string, RegisteredCitizen>();
+          for (const c of localC) {
+            mergedMap.set(c.uid, c);
+          }
+          for (const sc of data.citizens) {
+            const existing = mergedMap.get(sc.uid);
+            mergedMap.set(sc.uid, {
+              ...existing,
+              ...sc,
+              role: sc.role || existing?.role || 'investor',
+              planType: sc.planType || existing?.planType || (sc.isUnlimited ? 'pro' : 'free'),
+            });
+          }
+          const mergedList = Array.from(mergedMap.values());
+          setCitizens(mergedList);
+          saveCitizens(mergedList);
+          setStats(getPlatformAdminStats());
+        }
+      }
+    } catch {
+      // Local fallback preserved if offline
     }
   };
 
@@ -246,6 +284,64 @@ export default function AdminPage() {
     showNotification(`Subscription updated to ${plan.toUpperCase()} for ${uid}`);
   };
 
+  const handleOpenPremiumModal = (c: RegisteredCitizen) => {
+    setPremiumTargetCitizen(c);
+    setSelectedDurationOption(30);
+    setCustomDaysInput('45');
+    setCustomDaysError(null);
+    setIsPremiumModalOpen(true);
+  };
+
+  const handleConfirmAllotPremium = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!premiumTargetCitizen) return;
+
+    let effectiveDays = 30;
+    if (selectedDurationOption === 'custom') {
+      const parsed = parseInt(customDaysInput, 10);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 3650) {
+        setCustomDaysError('कृपया 1 से 3650 दिनों के बीच की मान्य संख्या दर्ज करें।');
+        return;
+      }
+      effectiveDays = parsed;
+    } else {
+      effectiveDays = selectedDurationOption;
+    }
+
+    setIsAllottingPremium(true);
+    try {
+      const serverRes = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'ALLOT_PREMIUM',
+          payload: {
+            uid: premiumTargetCitizen.uid,
+            days: effectiveDays,
+          },
+        }),
+      });
+
+      const data = await serverRes.json().catch(() => ({}));
+      if (!serverRes.ok) {
+        showNotification(`⚠️ प्रीमियम आवंटन अस्वीकृत: ${data.error || 'Server error'}`);
+        setIsAllottingPremium(false);
+        return;
+      }
+
+      adminAllotPremium(premiumTargetCitizen.uid, effectiveDays);
+      setIsPremiumModalOpen(false);
+      const targetName = premiumTargetCitizen.name;
+      setPremiumTargetCitizen(null);
+      await reloadData();
+      showNotification(`✅ '${targetName}' को +${effectiveDays} दिन का प्रीमियम ऐक्सेस सफलतापूर्वक आवंटित किया गया!`);
+    } catch {
+      showNotification('⚠️ सर्वर संचार त्रुटि (Network Error)।');
+    } finally {
+      setIsAllottingPremium(false);
+    }
+  };
+
   const handleOpenEditModal = (c: RegisteredCitizen) => {
     if (c.uid === CHIEF_ADMIN_UID) {
       showNotification('सुरक्षा नियम: मुख्य व्यवस्थापक (Chief Admin) स्थायी है — इसका पद अपरिवर्तनीय व सुरक्षित है।');
@@ -258,7 +354,7 @@ export default function AdminPage() {
     setEditOrg(c.organization);
     setEditCredits(c.credits);
     setEditUnlimited(c.isUnlimited);
-    setEditPassword(c.password || '');
+    setEditPassword('');
     setShowEditPassword(false);
     setIsEditModalOpen(true);
   };
@@ -277,8 +373,24 @@ export default function AdminPage() {
       organization: addOrg,
       isUnlimited: addUnlimited,
       credits: addCredits,
-      password: addPassword,
     });
+    fetch('/api/admin/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'APPOINT_POST',
+        payload: {
+          uid: created.uid,
+          name: addName.trim(),
+          role: addRole,
+          designation: created.designation,
+          organization: addOrg,
+          credits: addCredits,
+          isUnlimited: addUnlimited,
+          password: addPassword.trim() || undefined,
+        },
+      }),
+    }).catch(() => {});
     setIsAddModalOpen(false);
     const assignedPass = addPassword.trim();
     setAddName('');
@@ -312,9 +424,13 @@ export default function AdminPage() {
           action: 'APPOINT_POST',
           payload: {
             uid: selectedCitizenForEdit.uid,
+            name: editName.trim(),
             role: editRole,
-            designation: editDesignation,
-            password: editPassword,
+            designation: editDesignation.trim(),
+            organization: editOrg.trim(),
+            credits: editCredits,
+            isUnlimited: editUnlimited,
+            password: editPassword.trim() || undefined,
           },
         }),
       });
@@ -331,7 +447,6 @@ export default function AdminPage() {
         organization: editOrg,
         credits: editCredits,
         isUnlimited: editUnlimited,
-        password: editPassword,
       });
       if (!res.success) {
         showNotification(`⚠️ ${res.message}`);
@@ -594,7 +709,7 @@ export default function AdminPage() {
           <form onSubmit={handleUnlockAdmin} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider font-mono">
-                Master Security Passkey / PIN
+                Master Security Passkey
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -604,7 +719,7 @@ export default function AdminPage() {
                   type={showPasskey ? 'text' : 'password'}
                   value={passkeyInput}
                   onChange={(e) => setPasskeyInput(e.target.value)}
-                  placeholder="Enter Master Security Passkey..."
+                  placeholder="Enter 32+ character Master Security Passkey..."
                   autoFocus
                   required
                   className="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-50 border border-slate-300 focus:border-[#004A87] focus:ring-2 focus:ring-[#004A87]/15 text-slate-900 text-sm font-mono placeholder:text-slate-400 outline-none transition-all shadow-inner"
@@ -1023,6 +1138,19 @@ export default function AdminPage() {
                           >
                             {c.planType.toUpperCase()}
                           </span>
+                          {c.unlimitedExpiresAt ? (
+                            <div className="text-[10px] mt-0.5 font-mono">
+                              {c.unlimitedExpiresAt > Date.now() ? (
+                                <span className="text-emerald-700 font-bold">
+                                  वैध: {new Date(c.unlimitedExpiresAt).toLocaleDateString('en-GB')} ({Math.ceil((c.unlimitedExpiresAt - Date.now()) / (1000 * 60 * 60 * 24))}d left)
+                                </span>
+                              ) : (
+                                <span className="text-rose-600 font-bold">
+                                  समाप्त: {new Date(c.unlimitedExpiresAt).toLocaleDateString('en-GB')} (Expired)
+                                </span>
+                              )}
+                            </div>
+                          ) : null}
                         </td>
 
                         {/* Quick Admin Actions & Governance */}
@@ -1048,17 +1176,16 @@ export default function AdminPage() {
                                   +15 Scans
                                 </button>
 
-                                {/* Only show Pro activation if not already unlimited (NO REVOKE OPTION) */}
-                                {!c.isUnlimited && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSetPlan(c.uid, 'pro')}
-                                    className="px-2.5 py-1 rounded text-[10px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition-colors cursor-pointer"
-                                    title="Grant Pro Pass"
-                                  >
-                                    👑 +Pro Pass
-                                  </button>
-                                )}
+                                {/* Allot / Extend Premium Duration */}
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenPremiumModal(c)}
+                                  className="px-2.5 py-1 rounded text-[10px] font-bold bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300 transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
+                                  title="प्रीमियम अवधि आवंटित करें (Allot Premium Duration)"
+                                >
+                                  <Crown className="w-3 h-3 text-amber-700" />
+                                  <span>{c.isUnlimited && c.unlimitedExpiresAt && c.unlimitedExpiresAt > Date.now() ? '+अवधि बढ़ाएं' : '👑 +प्रो पास'}</span>
+                                </button>
 
                                 {/* Appoint Post & Role Button */}
                                 <button
@@ -1966,7 +2093,7 @@ export default function AdminPage() {
                       type={showEditPassword ? 'text' : 'password'}
                       value={editPassword}
                       onChange={(e) => setEditPassword(e.target.value)}
-                      placeholder="कम से कम 6 अक्षरों का पासवर्ड सेट करें (उदा. Aryan@VicePres2026)"
+                      placeholder="कम से कम 8 अक्षरों का सुरक्षित पासवर्ड सेट करें (उदा. Pass#K9m8!2026)"
                       className="w-full px-3 py-2.5 rounded-xl border border-amber-300 bg-white text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#004A87] pr-10"
                     />
                     <button
@@ -2093,6 +2220,219 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* ======================================================== */}
+        {/* MODAL 4: PREMIUM ACCESS DURATION ALLOTMENT DIALOG        */}
+        {/* ======================================================== */}
+        {isPremiumModalOpen && premiumTargetCitizen && (() => {
+          const now = Date.now();
+          const isCurrentlyActive = Boolean(
+            premiumTargetCitizen.isUnlimited &&
+            premiumTargetCitizen.unlimitedExpiresAt &&
+            premiumTargetCitizen.unlimitedExpiresAt > now
+          );
+          const baseTime = (isCurrentlyActive && premiumTargetCitizen.unlimitedExpiresAt) ? premiumTargetCitizen.unlimitedExpiresAt : now;
+          const effectiveDays = selectedDurationOption === 'custom' ? (parseInt(customDaysInput, 10) || 0) : selectedDurationOption;
+          const calculatedExpiryDate = new Date(baseTime + effectiveDays * 24 * 60 * 60 * 1000);
+          const formattedCalculatedExpiry = calculatedExpiryDate.toLocaleDateString('hi-IN', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          });
+
+          return (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 sm:p-7 space-y-5 relative animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                      <Crown className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-base text-slate-900">
+                        प्रीमियम ऐक्सेस व अवधि आवंटन
+                      </h3>
+                      <p className="text-[11px] text-[#004A87] font-mono font-bold">
+                        {premiumTargetCitizen.name} • {premiumTargetCitizen.uid}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPremiumModalOpen(false);
+                      setPremiumTargetCitizen(null);
+                    }}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                {/* Citizen's Current Status Banner */}
+                <div className={`p-3.5 rounded-2xl border text-xs space-y-1 ${
+                  isCurrentlyActive
+                    ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                    : premiumTargetCitizen.unlimitedExpiresAt
+                    ? 'bg-amber-50/70 border-amber-200 text-amber-950'
+                    : 'bg-slate-50 border-slate-200 text-slate-800'
+                }`}>
+                  <div className="flex items-center justify-between font-bold">
+                    <span className="flex items-center gap-1.5">
+                      {isCurrentlyActive ? '🟢 सक्रिय प्रो पास (Active Premium)' : premiumTargetCitizen.unlimitedExpiresAt ? '⏳ समाप्त प्रो पास (Expired Premium)' : '⚪ सामान्य खाता (Free Account)'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase bg-white border shadow-2xs font-extrabold">
+                      {isCurrentlyActive ? 'विस्तार मोड (Extending)' : 'नया आवंटन (Granting)'}
+                    </span>
+                  </div>
+                  {premiumTargetCitizen.unlimitedExpiresAt && (
+                    <p className="text-[11px] font-mono">
+                      {isCurrentlyActive
+                        ? `वर्तमान समाप्ति तिथि: ${new Date(premiumTargetCitizen.unlimitedExpiresAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })} (${Math.ceil((premiumTargetCitizen.unlimitedExpiresAt - now) / (1000 * 60 * 60 * 24))} दिन शेष)`
+                        : `पिछली समाप्ति तिथि: ${new Date(premiumTargetCitizen.unlimitedExpiresAt).toLocaleDateString('hi-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                    </p>
+                  )}
+                </div>
+
+                <form onSubmit={handleConfirmAllotPremium} className="space-y-4 text-xs font-sans">
+                  {/* Duration Options */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-2">
+                      अवधि चुनें (Select Premium Duration)
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { days: 7, label: '7 दिन', sub: '1 सप्ताह' },
+                        { days: 30, label: '30 दिन', sub: '1 माह' },
+                        { days: 90, label: '90 दिन', sub: '3 माह' },
+                        { days: 180, label: '180 दिन', sub: '6 माह' },
+                        { days: 365, label: '365 दिन', sub: '1 वर्ष' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.days}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDurationOption(opt.days);
+                            setCustomDaysError(null);
+                          }}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                            selectedDurationOption === opt.days
+                              ? 'bg-[#004A87] text-white border-[#004A87] shadow-sm font-bold ring-2 ring-[#004A87]/20'
+                              : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
+                          }`}
+                        >
+                          <div className="font-extrabold text-sm">{opt.label}</div>
+                          <div className={`text-[10px] ${selectedDurationOption === opt.days ? 'text-blue-100' : 'text-slate-500'}`}>
+                            {opt.sub}
+                          </div>
+                        </button>
+                      ))}
+
+                      {/* Custom Duration Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedDurationOption('custom');
+                        }}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                          selectedDurationOption === 'custom'
+                            ? 'bg-[#004A87] text-white border-[#004A87] shadow-sm font-bold ring-2 ring-[#004A87]/20'
+                            : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
+                        }`}
+                      >
+                        <div className="font-extrabold text-sm">कस्टम दिन</div>
+                        <div className={`text-[10px] ${selectedDurationOption === 'custom' ? 'text-blue-100' : 'text-slate-500'}`}>
+                          अपनी पसंद के दिन
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Custom Days Input if Selected */}
+                  {selectedDurationOption === 'custom' && (
+                    <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-1.5 animate-in fade-in">
+                      <label className="block text-xs font-bold text-slate-700">
+                        दिनों की संख्या दर्ज करें (Enter Days, 1 to 3650)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={1}
+                          max={3650}
+                          value={customDaysInput}
+                          onChange={(e) => {
+                            setCustomDaysInput(e.target.value);
+                            setCustomDaysError(null);
+                          }}
+                          placeholder="उदा. 45 या 60"
+                          className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-[#004A87] bg-white"
+                        />
+                      </div>
+                      {customDaysError && (
+                        <p className="text-[11px] text-red-600 font-bold">{customDaysError}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Live Expiry Calculation Preview Card */}
+                  <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                        <Clock className="w-4 h-4 text-amber-700" />
+                        <span>नई समाप्ति तिथि (New Expiry Date):</span>
+                      </span>
+                      <span className="text-xs font-mono font-black text-[#004A87] bg-white px-2 py-0.5 rounded-lg border border-amber-200">
+                        +{effectiveDays} दिन
+                      </span>
+                    </div>
+
+                    <div className="font-extrabold text-sm text-slate-900 pl-5">
+                      {effectiveDays > 0 ? formattedCalculatedExpiry : 'कृपया वैध दिन दर्ज करें'}
+                    </div>
+
+                    <p className="text-[11px] text-amber-900 leading-tight border-t border-amber-200/60 pt-2">
+                      {isCurrentlyActive
+                        ? `ℹ️ विस्तार नियम: सक्रिय पास होने के कारण, ये +${effectiveDays} दिन वर्तमान समाप्ति तिथि के बाद जोड़े जाएंगे।`
+                        : `ℹ️ नया आवंटन नियम: ये +${effectiveDays} दिन वर्तमान समय से जोड़े जाएंगे।`}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      disabled={isAllottingPremium}
+                      onClick={() => {
+                        setIsPremiumModalOpen(false);
+                        setPremiumTargetCitizen(null);
+                      }}
+                      className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition-colors cursor-pointer"
+                    >
+                      रद्द करें
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isAllottingPremium || effectiveDays <= 0}
+                      className="px-5 py-2.5 rounded-xl bg-[#004A87] hover:bg-[#003868] text-white font-extrabold shadow-sm cursor-pointer transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    >
+                      {isAllottingPremium ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>आवंटित किया जा रहा है...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Crown className="w-4 h-4 text-amber-300" />
+                          <span>💾 {isCurrentlyActive ? 'प्रीमियम अवधि बढ़ाएं' : 'प्रीमियम ऐक्सेस आवंटित करें'}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* ======================================================== */}
         {/* MODAL 3: DELETE CONFIRMATION DIALOG                     */}

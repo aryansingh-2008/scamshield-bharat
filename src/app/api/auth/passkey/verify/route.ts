@@ -17,6 +17,7 @@ import {
   verifyServerPresidentPasskey,
   verifyServerAdminPasskey,
   isPinOnlyCandidate,
+  isCompromisedPasskey,
 } from '@/lib/server-admin-auth';
 
 export async function POST(req: NextRequest) {
@@ -24,6 +25,21 @@ export async function POST(req: NextRequest) {
     const host = req.headers.get('host') || '';
     const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
     const isSecureCookie = process.env.NODE_ENV === 'production' && !isLocalhost;
+
+    // WebAuthn Origin / RP ID validation
+    const origin = req.headers.get('origin') || '';
+    const validOrigins = [
+      'https://scamshieldbharat.live',
+      'https://www.scamshieldbharat.live',
+      'http://localhost',
+      'http://127.0.0.1',
+    ];
+    if (origin && !validOrigins.some((vo) => origin.startsWith(vo))) {
+      return NextResponse.json(
+        { error: 'Security Origin Mismatch: Cross-origin passkey ceremony is prohibited.', code: 'INVALID_ORIGIN' },
+        { status: 403 }
+      );
+    }
 
     const body = await req.json();
     const { challenge, userType, passkeySecret } = body;
@@ -47,6 +63,17 @@ export async function POST(req: NextRequest) {
         {
           error: 'Access Denied: A numeric PIN cannot be used as the sole administrative factor. Master Security Passkey is required.',
           code: 'SOLE_PIN_DISALLOWED',
+        },
+        { status: 401 }
+      );
+    }
+
+    // Reject revoked / compromised credentials immediately
+    if (isCompromisedPasskey(cleanSecret)) {
+      return NextResponse.json(
+        {
+          error: 'Access Denied: This administrative credential has been revoked due to security compromise. Please use rotated credentials.',
+          code: 'CREDENTIAL_REVOKED_COMPROMISED',
         },
         { status: 401 }
       );

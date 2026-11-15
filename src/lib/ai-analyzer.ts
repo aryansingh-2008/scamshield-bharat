@@ -150,3 +150,95 @@ Format your response as a valid JSON object ONLY:
 
   return baseResult;
 }
+
+export type OcrMockHandler = (buffer: ArrayBuffer, mimeType: string) => Promise<string | null>;
+let mockOcrHandler: OcrMockHandler | null = null;
+
+export function setMockOcrHandlerForTesting(handler: OcrMockHandler | null): void {
+  mockOcrHandler = handler;
+}
+
+/**
+ * Multimodal OCR Extraction via Gemini Vision.
+ * Converts image buffer to base64 inlineData and requests verbatim text extraction.
+ * Guarantees zero disk persistence of sensitive image content.
+ */
+export async function extractTextFromScreenshot(
+  buffer: ArrayBuffer,
+  mimeType: string
+): Promise<{ extractedText: string; isOcrSuccess: boolean; error?: string }> {
+  if (!buffer || buffer.byteLength === 0) {
+    return { extractedText: '', isOcrSuccess: false, error: 'Empty image buffer provided.' };
+  }
+
+  // 1. Allow testing hook for deterministic offline test suites
+  if (mockOcrHandler) {
+    try {
+      const result = await mockOcrHandler(buffer, mimeType);
+      if (result !== null) {
+        return { extractedText: result.trim(), isOcrSuccess: result.trim().length > 0 };
+      }
+    } catch (e: any) {
+      return { extractedText: '', isOcrSuccess: false, error: e?.message || 'Mock OCR handler error.' };
+    }
+  }
+
+  // 2. Call Google Gemini Multimodal Vision API
+  const apiKey = process.env.AI_API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    return {
+      extractedText: '',
+      isOcrSuccess: false,
+      error: 'Vision AI key (GEMINI_API_KEY) not configured for image OCR extraction.',
+    };
+  }
+
+  try {
+    const base64Data = Buffer.from(buffer).toString('base64');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  inlineData: {
+                    mimeType: mimeType || 'image/jpeg',
+                    data: base64Data,
+                  },
+                },
+                {
+                  text: 'Extract all visible text from this screenshot verbatim. Include all English text, Hindi (Devanagari) text, numbers, returns percentages, amounts, URLs, Telegram usernames, WhatsApp numbers, UPI handles, and company names. Output ONLY the extracted text with no introductory or concluding remarks. If no readable text is present, return empty string.',
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.0,
+            maxOutputTokens: 2048,
+          },
+        }),
+      }
+    );
+
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+      return { extractedText: text, isOcrSuccess: text.length > 0 };
+    }
+
+    return { extractedText: '', isOcrSuccess: false, error: `OCR upstream error (${response.status})` };
+  } catch (err: any) {
+    return { extractedText: '', isOcrSuccess: false, error: err?.message || 'OCR request timed out.' };
+  }
+}
