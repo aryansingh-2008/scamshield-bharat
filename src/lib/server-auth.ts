@@ -47,6 +47,7 @@ export const PRIVILEGED_LOCKOUT_SECONDS = 15 * 60; // 15 minutes lockout duratio
 
 // In-memory revocation and brute-force tracking caches (for instance-level fallback)
 const localRevokedTokens = new Map<string, number>();
+const localRevokedUsers = new Map<string, number>();
 const localIpFailures = new Map<string, { count: number; lockedUntil: number; firstSeen: number }>();
 const localAccountIpFailures = new Map<string, { count: number; lockedUntil: number; firstSeen: number }>();
 const localGlobalAccountOrigins = new Map<string, { origins: Set<string>; lockedUntil: number; firstSeen: number }>();
@@ -54,6 +55,7 @@ const localSpentChallenges = new Map<string, number>();
 
 export function clearLocalAuthCaches(): void {
   localRevokedTokens.clear();
+  localRevokedUsers.clear();
   localIpFailures.clear();
   localAccountIpFailures.clear();
   localGlobalAccountOrigins.clear();
@@ -64,6 +66,9 @@ function cleanupLocalCaches() {
   const now = Date.now();
   for (const [hash, exp] of localRevokedTokens.entries()) {
     if (now > exp) localRevokedTokens.delete(hash);
+  }
+  for (const [userKey, exp] of localRevokedUsers.entries()) {
+    if (now > exp) localRevokedUsers.delete(userKey);
   }
   for (const [key, state] of localIpFailures.entries()) {
     if (now > state.lockedUntil && now > state.firstSeen + PRIVILEGED_LOCKOUT_SECONDS * 1000) {
@@ -232,13 +237,17 @@ export function verifySessionToken(token: string | null | undefined): SessionVer
  * - 'DISTRIBUTED_STORE_UNAVAILABLE' if Redis is offline/unreachable or unconfigured
  */
 export async function checkDistributedRevocationStatus(
-  token: string
+  token: string,
+  userUid?: string
 ): Promise<'REVOKED' | 'NOT_REVOKED' | 'DISTRIBUTED_STORE_UNAVAILABLE'> {
   if (!token) return 'REVOKED';
   const tokenHash = hashSessionToken(token);
 
   cleanupLocalCaches();
   if (localRevokedTokens.has(tokenHash)) {
+    return 'REVOKED';
+  }
+  if (userUid && localRevokedUsers.has(userUid)) {
     return 'REVOKED';
   }
 
@@ -254,23 +263,29 @@ export async function checkDistributedRevocationStatus(
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 1500);
 
+    const pipelineCommands: (string | number)[][] = [
+      ['GET', `scamshield:revoked:${tokenHash}`],
+    ];
+    if (userUid) {
+      pipelineCommands.push(['GET', `scamshield:revoked:user:${userUid}`]);
+    }
+
     const res = await fetch(`${url}/pipeline`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${redisToken}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify([
-        ['GET', `scamshield:revoked:${tokenHash}`],
-      ]),
+      body: JSON.stringify(pipelineCommands),
       signal: controller.signal,
     });
     clearTimeout(timeout);
 
     if (res.ok) {
       const data = await res.json();
-      const isRevoked = Boolean(data?.[0]?.result);
-      return isRevoked ? 'REVOKED' : 'NOT_REVOKED';
+      const isTokenRevoked = Boolean(data?.[0]?.result);
+      const isUserRevoked = Boolean(data?.[1]?.result);
+      return (isTokenRevoked || isUserRevoked) ? 'REVOKED' : 'NOT_REVOKED';
     }
   } catch {
     // Redis unreachable or timed out
@@ -289,14 +304,14 @@ export async function checkDistributedRevocationStatus(
  */
 export async function verifySessionTokenAsync(token: string | null | undefined): Promise<SessionVerificationResult> {
   const syncResult = verifySessionToken(token);
-  if (!syncResult.valid || !token) {
+  if (!syncResult.valid || !token || !syncResult.user) {
     return syncResult;
   }
 
-  const isPrivileged = syncResult.user?.role === 'admin';
+  const isPrivileged = syncResult.user.role === 'admin';
   const requireDistributed = process.env.REQUIRE_DISTRIBUTED_AUTH?.trim().toLowerCase() === 'true';
 
-  const revocationStatus = await checkDistributedRevocationStatus(token);
+  const revocationStatus = await checkDistributedRevocationStatus(token, syncResult.user.uid);
 
   if (revocationStatus === 'REVOKED') {
     return { valid: false, user: null, error: 'REVOKED_TOKEN' };
@@ -307,6 +322,49 @@ export async function verifySessionTokenAsync(token: string | null | undefined):
   }
 
   return syncResult;
+}
+
+/**
+ * Invalidate/Revoke all active sessions for a citizen UID across distributed Redis and local memory.
+ */
+export async function revokeUserSessionsAsync(uid: string, identifier?: string): Promise<void> {
+  if (!uid && !identifier) return;
+  const ttl = CITIZEN_SESSION_TTL_SECONDS;
+  const exp = Date.now() + ttl * 1000;
+
+  cleanupLocalCaches();
+  if (uid) localRevokedUsers.set(uid, exp);
+  if (identifier) localRevokedUsers.set(identifier, exp);
+
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (!rawUrl || !redisToken) return;
+  const url = rawUrl.trim().replace(/\/+$/, '');
+
+  try {
+    const commands: (string | number)[][] = [];
+    if (uid) {
+      commands.push(['SET', `scamshield:revoked:user:${uid}`, 'deleted', 'EX', ttl]);
+    }
+    if (identifier) {
+      commands.push(['SET', `scamshield:revoked:user:${identifier}`, 'deleted', 'EX', ttl]);
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1500);
+    await fetch(`${url}/pipeline`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${redisToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(commands),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+  } catch {
+    // Non-fatal if Redis unreachable
+  }
 }
 
 /**

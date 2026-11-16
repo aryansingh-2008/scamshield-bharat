@@ -173,22 +173,21 @@ export default function AdminPage() {
       if (res.ok) {
         const data = await res.json();
         if (data?.success && Array.isArray(data.citizens)) {
-          const mergedMap = new Map<string, RegisteredCitizen>();
+          const localMap = new Map<string, RegisteredCitizen>();
           for (const c of localC) {
-            mergedMap.set(c.uid, c);
+            localMap.set(c.uid, c);
           }
-          for (const sc of data.citizens) {
-            const existing = mergedMap.get(sc.uid);
-            mergedMap.set(sc.uid, {
+          const serverList: RegisteredCitizen[] = data.citizens.map((sc: any) => {
+            const existing = localMap.get(sc.uid);
+            return {
               ...existing,
               ...sc,
               role: sc.role || existing?.role || 'investor',
               planType: sc.planType || existing?.planType || (sc.isUnlimited ? 'pro' : 'free'),
-            });
-          }
-          const mergedList = Array.from(mergedMap.values());
-          setCitizens(mergedList);
-          saveCitizens(mergedList);
+            };
+          });
+          setCitizens(serverList);
+          saveCitizens(serverList);
           setStats(getPlatformAdminStats());
         }
       }
@@ -503,21 +502,16 @@ export default function AdminPage() {
         }),
       });
       const data = await serverRes.json().catch(() => ({}));
-      if (!serverRes.ok) {
+      if (!serverRes.ok || !data.success) {
         showNotification(`⚠️ खाता हटाना अस्वीकृत: ${data.error || 'Unauthorized'}`);
         setDeleteConfirmCitizen(null);
         return;
       }
 
       const res = adminDeleteCitizen(uid);
-      if (!res.success) {
-        showNotification(`⚠️ ${res.message}`);
-        setDeleteConfirmCitizen(null);
-        return;
-      }
       setDeleteConfirmCitizen(null);
-      reloadData();
-      showNotification(`✅ ${res.message}`);
+      await reloadData();
+      showNotification(`✅ ${data.message || res.message}`);
     } catch {
       showNotification('⚠️ सर्वर संचार त्रुटि (Network Error)।');
       setDeleteConfirmCitizen(null);

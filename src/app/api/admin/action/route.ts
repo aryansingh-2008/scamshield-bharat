@@ -14,6 +14,7 @@ import {
   getAllCitizenAccountsAsync,
   getCitizenAccountAsync,
   saveCitizenAccountAsync,
+  deleteCitizenAccountAsync,
 } from '../../../../lib/server-citizen-auth';
 
 /**
@@ -254,6 +255,44 @@ export async function POST(req: NextRequest) {
       } : undefined,
       executedBy: verification.user.uid,
       message: `Premium access successfully ${allotResult.actionType === 'EXTENDED' ? 'extended' : 'granted'} for ${days} days.`,
+    });
+  }
+
+  // Handle DELETE_CITIZEN
+  if (action === 'DELETE_CITIZEN') {
+    const payload = body.payload || {};
+    const targetUid = payload.uid;
+
+    if (!targetUid || typeof targetUid !== 'string' || !targetUid.trim()) {
+      return NextResponse.json(
+        { success: false, error: 'Target Citizen UID is required for deletion.', code: 'MISSING_UID' },
+        { status: 400 }
+      );
+    }
+
+    const cleanUid = targetUid.trim();
+    const deleteResult = await deleteCitizenAccountAsync(cleanUid);
+
+    if (!deleteResult.success) {
+      const isForbidden = deleteResult.code === 'PROTECTED_ACCOUNT';
+      return NextResponse.json(
+        {
+          success: false,
+          action: 'DELETE_CITIZEN',
+          error: deleteResult.message,
+          code: deleteResult.code || 'DELETE_FAILED',
+        },
+        { status: isForbidden ? 403 : 400 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      action: 'DELETE_CITIZEN',
+      uid: cleanUid,
+      alreadyDeleted: deleteResult.alreadyDeleted,
+      message: deleteResult.message,
+      executedBy: verification.user.uid,
     });
   }
 

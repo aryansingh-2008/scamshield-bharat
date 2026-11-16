@@ -210,26 +210,35 @@ export function getAllCitizens(): RegisteredCitizen[] {
 
     // Ensure Chief Admin account is permanently present, immutable, and forever Unlimited
     let modified = false;
-    const chiefIdx = parsed.findIndex((c: RegisteredCitizen) => c.uid === 'SSB-ADMIN-0001');
+
+    // Filter out locally recorded deleted citizens
+    const rawDeleted = localStorage.getItem('scamshield_deleted_citizens_v1');
+    const deletedSet: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+    let cleanedList = parsed.filter((c: RegisteredCitizen) => !deletedSet.includes(c.uid));
+    if (cleanedList.length !== parsed.length) {
+      modified = true;
+    }
+
+    const chiefIdx = cleanedList.findIndex((c: RegisteredCitizen) => c.uid === 'SSB-ADMIN-0001');
     const permanentChief = INITIAL_CITIZENS.find((c) => c.uid === 'SSB-ADMIN-0001')!;
 
     if (chiefIdx === -1) {
-      parsed.unshift({ ...permanentChief, isUnlimited: true, planType: 'annual', credits: 9999 });
+      cleanedList.unshift({ ...permanentChief, isUnlimited: true, planType: 'annual', credits: 9999 });
       modified = true;
     } else {
       // Hard enforce permanence and unlimited access on Chief Admin
-      if (!parsed[chiefIdx].isUnlimited || parsed[chiefIdx].role !== 'admin') {
-        parsed[chiefIdx].role = 'admin';
-        parsed[chiefIdx].isUnlimited = true;
-        parsed[chiefIdx].planType = 'annual';
-        parsed[chiefIdx].credits = 9999;
+      if (!cleanedList[chiefIdx].isUnlimited || cleanedList[chiefIdx].role !== 'admin') {
+        cleanedList[chiefIdx].role = 'admin';
+        cleanedList[chiefIdx].isUnlimited = true;
+        cleanedList[chiefIdx].planType = 'annual';
+        cleanedList[chiefIdx].credits = 9999;
         modified = true;
       }
     }
     if (modified) {
-      localStorage.setItem(STORAGE_KEY_CITIZENS, JSON.stringify(parsed));
+      localStorage.setItem(STORAGE_KEY_CITIZENS, JSON.stringify(cleanedList));
     }
-    return parsed;
+    return cleanedList;
   } catch (e) {
     console.warn('Failed to load citizens registry', e);
     return INITIAL_CITIZENS;
@@ -545,14 +554,21 @@ export function adminSetSubscription(
 // Chief Administrator UID - Root Authority with Permanent Immunity
 export const CHIEF_ADMIN_UID = 'SSB-ADMIN-0001';
 
-// Admin deletes a citizen or official account (Chief Admin CANNOT be deleted by anyone)
+// Admin deletes a citizen or official account (Chief Admin & President CANNOT be deleted by anyone)
 export function adminDeleteCitizen(
   targetUid: string
 ): { success: boolean; message: string } {
-  if (targetUid === CHIEF_ADMIN_UID) {
+  if (targetUid === CHIEF_ADMIN_UID || targetUid === 'SSB-ADMIN-0001') {
     return {
       success: false,
       message: 'सुरक्षा नियम: मुख्य व्यवस्थापक (Chief Admin - Aryan Singh) को किसी के द्वारा भी डिलीट नहीं किया जा सकता। यह रूट खाता अपरिवर्तनीय व स्थायी रूप से सुरक्षित है।',
+    };
+  }
+
+  if (targetUid === 'SSB-PRESIDENT-0001') {
+    return {
+      success: false,
+      message: 'सुरक्षा नियम: राष्ट्रपति (President - Arti) के खाते को डिलीट नहीं किया जा सकता। यह पद सुरक्षित है।',
     };
   }
 
@@ -563,8 +579,36 @@ export function adminDeleteCitizen(
   }
 
   const deletedUser = citizens[idx];
+  if (deletedUser.role === 'admin') {
+    return {
+      success: false,
+      message: 'सुरक्षा नियम: व्यवस्थापक (Admin) खाते को डिलीट नहीं किया जा सकता।',
+    };
+  }
+
   citizens.splice(idx, 1);
   saveCitizens(citizens);
+
+  // Record deleted UID in client deleted set to avoid re-seeding from INITIAL_CITIZENS
+  if (typeof window !== 'undefined') {
+    try {
+      const rawDeleted = localStorage.getItem('scamshield_deleted_citizens_v1');
+      const deletedSet: string[] = rawDeleted ? JSON.parse(rawDeleted) : [];
+      if (!deletedSet.includes(targetUid)) {
+        deletedSet.push(targetUid);
+        localStorage.setItem('scamshield_deleted_citizens_v1', JSON.stringify(deletedSet));
+      }
+      // If deleted citizen is current active session on this device, log them out
+      const rawUser = localStorage.getItem('scamshield_user_session');
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        if (u?.uid === targetUid) {
+          localStorage.removeItem('scamshield_user_session');
+          localStorage.removeItem('scamshield_user_unlimited');
+        }
+      }
+    } catch {}
+  }
 
   return {
     success: true,
