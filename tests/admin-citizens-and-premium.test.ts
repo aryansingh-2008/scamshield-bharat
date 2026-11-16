@@ -507,5 +507,102 @@ describe('Admin Citizens Dashboard & Premium Allotment Suite', () => {
       expect(inStore?.isUnlimited).toBe(true);
       expect(inStore?.unlimitedExpiresAt).toBeGreaterThan(Date.now());
     });
+
+    it('creates a new citizen account via APPOINT_POST when citizen does not exist previously', async () => {
+      const newUid = 'SSB-2026-889911';
+      const appointReq = new NextRequest('http://localhost:3000/api/admin/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          action: 'APPOINT_POST',
+          payload: {
+            uid: newUid,
+            name: 'Meena Kumari',
+            emailOrPhone: '9899887766',
+            role: 'investor',
+            designation: 'Advisory Member',
+            organization: 'ScamShield Bharat',
+            credits: 30,
+            isUnlimited: true,
+            password: 'Meena@Secure2026',
+          },
+        }),
+      });
+
+      const appointRes = await postAdminAction(appointReq);
+      expect(appointRes.status).toBe(200);
+
+      const inStore = await getCitizenAccountAsync(newUid);
+      expect(inStore).toBeDefined();
+      expect(inStore?.name).toBe('Meena Kumari');
+      expect(inStore?.normalizedIdentifier).toBe('9899887766');
+      expect(inStore?.isUnlimited).toBe(true);
+      expect(inStore?.credits).toBe(30);
+    });
+
+    it('allots Premium to seeded citizen Rohan Gupta (SSB-2026-102948)', async () => {
+      const allotReq = new NextRequest('http://localhost:3000/api/admin/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          action: 'ALLOT_PREMIUM',
+          payload: {
+            uid: 'SSB-2026-102948',
+            days: 30,
+          },
+        }),
+      });
+
+      const allotRes = await postAdminAction(allotReq);
+      expect(allotRes.status).toBe(200);
+
+      const inStore = await getCitizenAccountAsync('SSB-2026-102948');
+      expect(inStore?.isUnlimited).toBe(true);
+      expect(inStore?.unlimitedExpiresAt).toBeGreaterThan(Date.now());
+    });
+
+    it('allows unauthenticated client session to query Pro status by ?uid=SSB-...', async () => {
+      const sessionReq = new NextRequest('http://localhost:3000/api/auth/session?uid=SSB-2026-102948');
+      const sessionRes = await getAuthSession(sessionReq);
+      expect(sessionRes.status).toBe(200);
+
+      const data = await sessionRes.json();
+      expect(data.authenticated).toBe(false);
+      expect(data.user).toBeDefined();
+      expect(data.user.uid).toBe('SSB-2026-102948');
+      expect(data.user.isUnlimited).toBe(true);
+    });
+
+    it('approves UTR transaction and updates citizen Pro status on server via APPROVE_UTR', async () => {
+      const utrReq = new NextRequest('http://localhost:3000/api/admin/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${adminToken}`,
+        },
+        body: JSON.stringify({
+          action: 'APPROVE_UTR',
+          payload: {
+            utr: '439281029999',
+            userUid: 'SSB-2026-784210',
+            planId: 'pro',
+            notes: 'Approved via GPay',
+          },
+        }),
+      });
+
+      const utrRes = await postAdminAction(utrReq);
+      expect(utrRes.status).toBe(200);
+
+      const inStore = await getCitizenAccountAsync('SSB-2026-784210');
+      expect(inStore?.isUnlimited).toBe(true);
+      expect(inStore?.unlimitedExpiresAt).toBeGreaterThan(Date.now());
+    });
   });
 });

@@ -14,13 +14,43 @@ export async function GET(req: NextRequest) {
   const verification = await verifySessionTokenAsync(token);
 
   if (!verification.valid || !verification.user) {
+    // Check if client provided UID query parameter to check entitlement status
+    const searchParams = req.nextUrl.searchParams;
+    const queryUid = searchParams.get('uid');
+    if (queryUid && queryUid.trim().startsWith('SSB-')) {
+      const acct = await getCitizenAccountAsync(queryUid.trim());
+      if (acct) {
+        const now = Date.now();
+        const isUnlimitedActive = Boolean(
+          acct.role === 'admin' ||
+          (acct.isUnlimited && (!acct.unlimitedExpiresAt || acct.unlimitedExpiresAt > now))
+        );
+        return NextResponse.json({
+          authenticated: false,
+          user: {
+            uid: acct.uid,
+            name: acct.name,
+            role: acct.role,
+            designation: acct.designation,
+            organization: acct.organization,
+            credits: acct.credits,
+            isUnlimited: isUnlimitedActive,
+            unlimitedExpiresAt: acct.unlimitedExpiresAt,
+            planType: acct.planType || (isUnlimitedActive ? 'pro' : 'free'),
+          },
+        }, { status: 200 });
+      }
+    }
     return NextResponse.json({ authenticated: false, user: null }, { status: 200 });
   }
 
   let authoritativeUser: UserProfile = { ...verification.user };
 
-  if (verification.user.uid) {
-    const acct = await getCitizenAccountAsync(verification.user.uid);
+  if (verification.user.uid || verification.user.emailOrPhone) {
+    let acct = verification.user.uid ? await getCitizenAccountAsync(verification.user.uid) : null;
+    if (!acct && verification.user.emailOrPhone) {
+      acct = await getCitizenAccountAsync(verification.user.emailOrPhone);
+    }
     if (acct) {
       const now = Date.now();
       const isUnlimitedActive = Boolean(
