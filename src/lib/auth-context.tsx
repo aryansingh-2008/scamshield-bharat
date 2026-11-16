@@ -108,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fetch(`/api/auth/session${uidParam}`, { credentials: 'include' })
         .then((res) => res.json())
         .then((data) => {
-          if (data?.user) {
+          if (data?.authenticated && data?.user) {
             const serverUser: UserProfile = data.user;
             setUser(serverUser);
             if (typeof serverUser.credits === 'number') {
@@ -129,8 +129,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
             } catch {}
             syncCurrentUserToRegistry(serverUser);
-          } else if (data && (data.accountDeleted || (data.authenticated === false && !data.user))) {
-            // Authoritative server response: account does not exist or was deleted
+          } else if (data && data.accountDeleted) {
+            // Authoritative server response: account was deleted or revoked
             if (parsedLocal && parsedLocal.role !== 'admin') {
               setUser(null);
               setIsUnlimited(false);
@@ -244,7 +244,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (res && res.ok) {
         const data = await res.json().catch(() => null);
-        if (data?.user) {
+        if (data?.authenticated && data?.user) {
           const sUser: UserProfile = data.user;
           const merged: UserProfile = user ? { ...user, ...sUser } : sUser;
           setUser(merged);
@@ -265,8 +265,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } catch {}
           syncCurrentUserToRegistry(merged);
           return;
-        } else if (data && (data.accountDeleted || (data.authenticated === false && !data.user))) {
-          // Server indicates account is deleted or nonexistent
+        } else if (data && data.accountDeleted) {
+          // Server confirms account is deleted or revoked
           if (parsedLocalUser && parsedLocalUser.role !== 'admin') {
             setUser(null);
             setIsUnlimited(false);

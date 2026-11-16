@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
 
@@ -317,6 +317,7 @@ describe('Admin Citizen Account Deletion & Revocation Suite', () => {
       expect(dataCookie.authenticated).toBe(false);
       expect(dataCookie.user).toBeNull();
       expect(dataCookie.accountDeleted).toBe(true);
+      expect(resCookie.cookies.get(SESSION_COOKIE_NAME)?.value === '' || resCookie.cookies.get(SESSION_COOKIE_NAME)?.maxAge === 0).toBe(true);
 
       // Call session endpoint with ?uid query
       const reqWithUid = new NextRequest(`http://localhost:3000/api/auth/session?uid=${citizen.uid}`);
@@ -326,6 +327,7 @@ describe('Admin Citizen Account Deletion & Revocation Suite', () => {
       expect(dataUid.authenticated).toBe(false);
       expect(dataUid.user).toBeNull();
       expect(dataUid.accountDeleted).toBe(true);
+      expect(resUid.cookies.get(SESSION_COOKIE_NAME)?.value === '' || resUid.cookies.get(SESSION_COOKIE_NAME)?.maxAge === 0).toBe(true);
     });
   });
 
@@ -432,6 +434,327 @@ describe('Admin Citizen Account Deletion & Revocation Suite', () => {
       expect(checkB).not.toBeNull();
       expect(checkB?.name).toBe('User Beta');
       expect(checkB?.normalizedIdentifier).toBe('9870000002');
+    });
+  });
+
+  describe('8. Redis Deletion Reliability & Error Propagation', () => {
+    const originalFetch = global.fetch;
+    const originalRedisUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const originalRedisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+      if (originalRedisUrl !== undefined) {
+        process.env.UPSTASH_REDIS_REST_URL = originalRedisUrl;
+      } else {
+        delete process.env.UPSTASH_REDIS_REST_URL;
+      }
+      if (originalRedisToken !== undefined) {
+        process.env.UPSTASH_REDIS_REST_TOKEN = originalRedisToken;
+      } else {
+        delete process.env.UPSTASH_REDIS_REST_TOKEN;
+      }
+    });
+
+    it('surfaces failure and does not delete account when Upstash returns HTTP 500', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-secret-token';
+
+      const reg = await createCitizenAccountAsync({
+        identifier: '9870004455',
+        password: 'Password@2026',
+        name: 'Failure Test Citizen',
+      });
+      const uid = reg.citizen!.uid;
+
+      // Mock fetch to simulate Upstash HTTP 500 error
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        json: async () => ({ error: 'Internal Server Error' }),
+      } as any);
+
+      // Attempt deletion via deleteCitizenAccountAsync
+      const result = await deleteCitizenAccountAsync(uid);
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('REDIS_HTTP_ERROR');
+
+      // Attempt deletion via POST /api/admin/action
+      const req = new NextRequest('http://localhost:3000/api/admin/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${chiefAdminToken}`,
+        },
+        body: JSON.stringify({
+          action: 'DELETE_CITIZEN',
+          payload: { uid },
+        }),
+      });
+
+      const res = await postAdminAction(req);
+      const data = await res.json();
+      expect(res.status).toBe(500);
+      expect(data.success).toBe(false);
+      expect(data.code).toBe('REDIS_HTTP_ERROR');
+
+      // Account must still exist in memory because Redis failed
+      const check = await getCitizenAccountAsync(uid);
+      expect(check).not.toBeNull();
+      expect(check?.name).toBe('Failure Test Citizen');
+    });
+
+    it('surfaces failure and rejects deletion when Redis network times out', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-secret-token';
+
+      const reg = await createCitizenAccountAsync({
+        identifier: '9870005566',
+        password: 'Password@2026',
+        name: 'Timeout Test Citizen',
+      });
+      const uid = reg.citizen!.uid;
+
+      // Mock fetch to simulate network timeout / AbortError
+      const abortErr = new Error('The operation was aborted');
+      abortErr.name = 'AbortError';
+      global.fetch = vi.fn().mockRejectedValue(abortErr);
+
+      const result = await deleteCitizenAccountAsync(uid);
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('REDIS_TIMEOUT');
+
+      const req = new NextRequest('http://localhost:3000/api/admin/action', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${chiefAdminToken}`,
+        },
+        body: JSON.stringify({
+          action: 'DELETE_CITIZEN',
+          payload: { uid },
+        }),
+      });
+
+      const res = await postAdminAction(req);
+      expect(res.status).toBe(504);
+    });
+
+    it('surfaces failure when pipeline contains command-level error', async () => {
+      process.env.UPSTASH_REDIS_REST_URL = 'https://mock-redis.upstash.io';
+      process.env.UPSTASH_REDIS_REST_TOKEN = 'mock-secret-token';
+
+      const reg = await createCitizenAccountAsync({
+        identifier: '9870006677',
+        password: 'Password@2026',
+        name: 'Command Error Citizen',
+      });
+      const uid = reg.citizen!.uid;
+
+      // Mock fetch returning HTTP 200 but one command having an error
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => [
+          { result: 1 },
+          { error: 'ERR write command failed on read-only replica' },
+        ],
+      } as any);
+
+      const result = await deleteCitizenAccountAsync(uid);
+      expect(result.success).toBe(false);
+      expect(result.code).toBe('REDIS_COMMAND_ERROR');
+    });
+  });
+
+  describe('9. Session Cookie Deletion on Every Revocation / Deletion Branch', () => {
+    it('deletes cookie when session token is valid but citizen record is deleted', async () => {
+      // User creates account and obtains session token
+      const reg = await createCitizenAccountAsync({
+        identifier: '9870007799',
+        password: 'Password@2026',
+        name: 'Valid Token Deleted Acct',
+      });
+      const citizen = reg.citizen!;
+      const token = signSessionToken({
+        uid: citizen.uid,
+        name: citizen.name,
+        emailOrPhone: citizen.normalizedIdentifier,
+        role: citizen.role,
+        verified: true,
+      });
+
+      // Manually delete account from store
+      await deleteCitizenAccountAsync(citizen.uid);
+
+      const req = new NextRequest('http://localhost:3000/api/auth/session', {
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+        },
+      });
+
+      const res = await getAuthSession(req);
+      const data = await res.json();
+
+      expect(data.authenticated).toBe(false);
+      expect(data.accountDeleted).toBe(true);
+      expect(res.cookies.get(SESSION_COOKIE_NAME)?.value === '' || res.cookies.get(SESSION_COOKIE_NAME)?.maxAge === 0).toBe(true);
+    });
+
+    it('preserves normal unauthenticated guest requests without deleting cookies', async () => {
+      const guestReq = new NextRequest('http://localhost:3000/api/auth/session');
+      const res = await getAuthSession(guestReq);
+      const data = await res.json();
+
+      expect(data.authenticated).toBe(false);
+      expect(data.user).toBeNull();
+      expect(data.accountDeleted).toBeUndefined();
+      expect(res.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
+    });
+  });
+
+  describe('10. Protection Against Unauthenticated Profile Disclosure & UID Impersonation', () => {
+    it('never discloses citizen profile to unauthenticated caller requesting ?uid=', async () => {
+      const reg = await createCitizenAccountAsync({
+        identifier: '9870009988',
+        password: 'Password@2026',
+        name: 'Secret Profile User',
+      });
+      const targetUid = reg.citizen!.uid;
+
+      // An unauthenticated attacker queries /api/auth/session?uid=targetUid
+      const req = new NextRequest(`http://localhost:3000/api/auth/session?uid=${targetUid}`);
+      const res = await getAuthSession(req);
+      const data = await res.json();
+
+      // Must be unauthenticated and user must be null
+      expect(data.authenticated).toBe(false);
+      expect(data.user).toBeNull();
+    });
+
+    it('rejects UID mismatch when authenticated citizen requests another citizen UID', async () => {
+      const regTarget = await createCitizenAccountAsync({
+        identifier: '9870001133',
+        password: 'Password@2026',
+        name: 'Target Citizen',
+      });
+      const targetUid = regTarget.citizen!.uid;
+
+      // Ordinary citizen attempts to pass someone else's UID in query parameter
+      const req = new NextRequest(`http://localhost:3000/api/auth/session?uid=${targetUid}`, {
+        headers: {
+          Authorization: `Bearer ${ordinaryCitizenToken}`,
+        },
+      });
+
+      const res = await getAuthSession(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(403);
+      expect(data.authenticated).toBe(false);
+      expect(data.error).toBe('UID_MISMATCH');
+    });
+
+    it('permits authenticated citizen to query their own UID and receive live entitlements', async () => {
+      const reg = await createCitizenAccountAsync({
+        identifier: '9870002244',
+        password: 'Password@2026',
+        name: 'Entitled Citizen',
+      });
+      const citizen = reg.citizen!;
+      const token = signSessionToken({
+        uid: citizen.uid,
+        name: citizen.name,
+        emailOrPhone: citizen.normalizedIdentifier,
+        role: citizen.role,
+        verified: true,
+      });
+
+      const req = new NextRequest(`http://localhost:3000/api/auth/session?uid=${citizen.uid}`, {
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=${token}`,
+        },
+      });
+
+      const res = await getAuthSession(req);
+      const data = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(data.authenticated).toBe(true);
+      expect(data.user).not.toBeNull();
+      expect(data.user.uid).toBe(citizen.uid);
+      expect(data.user.name).toBe('Entitled Citizen');
+    });
+  });
+
+  describe('11. Safe Re-registration After Deletion (Tombstone Isolation)', () => {
+    it('allows re-registration with previously deleted mobile identifier while keeping old UID permanently tombstoned', async () => {
+      const mobile = '9870003355';
+
+      // 1. Initial registration
+      const reg1 = await createCitizenAccountAsync({
+        identifier: mobile,
+        password: 'OriginalPassword@2026',
+        name: 'Original User',
+      });
+      expect(reg1.success).toBe(true);
+      const oldUid = reg1.citizen!.uid;
+      const oldToken = signSessionToken({
+        uid: oldUid,
+        name: 'Original User',
+        emailOrPhone: mobile,
+        role: 'investor',
+        verified: true,
+      });
+
+      // 2. Delete the account
+      const del = await deleteCitizenAccountAsync(oldUid);
+      expect(del.success).toBe(true);
+
+      // Verify old UID is tombstoned and cannot be retrieved
+      const checkOld = await getCitizenAccountAsync(oldUid);
+      expect(checkOld).toBeNull();
+
+      // Old session token is rejected
+      const verifyOldToken = await verifySessionTokenAsync(oldToken);
+      expect(verifyOldToken.valid).toBe(false);
+      expect(verifyOldToken.error).toBe('REVOKED_TOKEN');
+
+      // 3. Re-register with the same mobile identifier
+      const reg2 = await createCitizenAccountAsync({
+        identifier: mobile,
+        password: 'NewPassword@2026',
+        name: 'Recreated User',
+      });
+      expect(reg2.success).toBe(true);
+      const newUid = reg2.citizen!.uid;
+      expect(newUid).not.toBe(oldUid); // Must receive a new UID
+
+      // 4. Verify new account can be retrieved by mobile
+      const checkNew = await getCitizenAccountAsync(mobile);
+      expect(checkNew).not.toBeNull();
+      expect(checkNew?.uid).toBe(newUid);
+      expect(checkNew?.name).toBe('Recreated User');
+
+      // 5. Old deleted UID remains permanently dead
+      const checkOldAgain = await getCitizenAccountAsync(oldUid);
+      expect(checkOldAgain).toBeNull();
+
+      // 6. Old session token remains revoked and rejected
+      const verifyOldAgain = await verifySessionTokenAsync(oldToken);
+      expect(verifyOldAgain.valid).toBe(false);
+
+      // 7. New token for the new UID is valid and accepted
+      const newToken = signSessionToken({
+        uid: newUid,
+        name: 'Recreated User',
+        emailOrPhone: mobile,
+        role: 'investor',
+        verified: true,
+      });
+      const verifyNewToken = await verifySessionTokenAsync(newToken);
+      expect(verifyNewToken.valid).toBe(true);
+      expect(verifyNewToken.user?.uid).toBe(newUid);
     });
   });
 });

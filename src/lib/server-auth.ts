@@ -93,6 +93,15 @@ function cleanupLocalCaches() {
 }
 
 // Resolve Secret: Environment variable AUTH_SECRET or secure fallback
+export function getRedisCredentials(): { url: string; token: string } | null {
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  if (!rawUrl || rawUrl === 'undefined' || !token || token === 'undefined') {
+    return null;
+  }
+  return { url: rawUrl.trim().replace(/\/+$/, ''), token };
+}
+
 export function getAuthSecret(): string {
   const envSecret = process.env.AUTH_SECRET || process.env.SESSION_SECRET;
   if (envSecret && envSecret.length >= 16) {
@@ -251,13 +260,11 @@ export async function checkDistributedRevocationStatus(
     return 'REVOKED';
   }
 
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-
-  if (!rawUrl || !redisToken) {
+  const redis = getRedisCredentials();
+  if (!redis) {
     return 'DISTRIBUTED_STORE_UNAVAILABLE';
   }
-  const url = rawUrl.trim().replace(/\/+$/, '');
+  const { url, token: redisToken } = redis;
 
   try {
     const controller = new AbortController();
@@ -336,11 +343,9 @@ export async function revokeUserSessionsAsync(uid: string, identifier?: string):
   if (uid) localRevokedUsers.set(uid, exp);
   if (identifier) localRevokedUsers.set(identifier, exp);
 
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-
-  if (!rawUrl || !redisToken) return;
-  const url = rawUrl.trim().replace(/\/+$/, '');
+  const redis = getRedisCredentials();
+  if (!redis) return;
+  const { url, token: redisToken } = redis;
 
   try {
     const commands: (string | number)[][] = [];
@@ -394,11 +399,9 @@ export async function revokeDistributedSession(token: string | null | undefined)
   cleanupLocalCaches();
   localRevokedTokens.set(tokenHash, Date.now() + remainingTtl * 1000);
 
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-
-  if (!rawUrl || !redisToken) return;
-  const url = rawUrl.trim().replace(/\/+$/, '');
+  const redis = getRedisCredentials();
+  if (!redis) return;
+  const { url, token: redisToken } = redis;
 
   try {
     const controller = new AbortController();
@@ -749,11 +752,9 @@ export async function clearFailedAuthAttempts(
     localGlobalAccountOrigins.delete(cleanIdent);
   }
 
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-
-  if (!rawUrl || !redisToken) return;
-  const url = rawUrl.trim().replace(/\/+$/, '');
+  const redis = getRedisCredentials();
+  if (!redis) return;
+  const { url, token: redisToken } = redis;
 
   try {
     const controller = new AbortController();

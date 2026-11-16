@@ -567,16 +567,37 @@ describe('Admin Citizens Dashboard & Premium Allotment Suite', () => {
       expect(inStore?.unlimitedExpiresAt).toBeGreaterThan(Date.now());
     });
 
-    it('allows unauthenticated client session to query Pro status by ?uid=SSB-...', async () => {
-      const sessionReq = new NextRequest('http://localhost:3000/api/auth/session?uid=SSB-2026-102948');
-      const sessionRes = await getAuthSession(sessionReq);
-      expect(sessionRes.status).toBe(200);
+    it('requires authenticated session for Pro status polling and denies unauthenticated profile leak', async () => {
+      // 1. Unauthenticated request with ?uid must NEVER disclose citizen profile
+      const unauthReq = new NextRequest('http://localhost:3000/api/auth/session?uid=SSB-2026-102948');
+      const unauthRes = await getAuthSession(unauthReq);
+      expect(unauthRes.status).toBe(200);
+      const unauthData = await unauthRes.json();
+      expect(unauthData.authenticated).toBe(false);
+      expect(unauthData.user).toBeNull();
 
-      const data = await sessionRes.json();
-      expect(data.authenticated).toBe(false);
-      expect(data.user).toBeDefined();
-      expect(data.user.uid).toBe('SSB-2026-102948');
-      expect(data.user.isUnlimited).toBe(true);
+      // 2. Authenticated request polling their own UID receives live Pro pass
+      const citizenToken = signSessionToken({
+        uid: 'SSB-2026-102948',
+        name: 'Rohan Gupta',
+        emailOrPhone: 'rohan.gupta99@gmail.com',
+        role: 'investor',
+        verified: true,
+      });
+
+      const authReq = new NextRequest('http://localhost:3000/api/auth/session?uid=SSB-2026-102948', {
+        headers: {
+          Authorization: `Bearer ${citizenToken}`,
+        },
+      });
+      const authRes = await getAuthSession(authReq);
+      expect(authRes.status).toBe(200);
+
+      const authData = await authRes.json();
+      expect(authData.authenticated).toBe(true);
+      expect(authData.user).toBeDefined();
+      expect(authData.user.uid).toBe('SSB-2026-102948');
+      expect(authData.user.isUnlimited).toBe(true);
     });
 
     it('approves UTR transaction and updates citizen Pro status on server via APPROVE_UTR', async () => {

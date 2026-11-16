@@ -30,7 +30,39 @@ export interface CitizenAccountRecord {
 // In-memory backing store for local testing, fallback, and instance caching
 const localCitizenAccounts = new Map<string, CitizenAccountRecord>();
 const localUidToIdentifier = new Map<string, string>();
-const localDeletedCitizens = new Set<string>();
+const localDeletedUids = new Set<string>();
+const localDeletedIdentifiers = new Set<string>();
+
+/**
+ * Synchronized tombstone interface distinguishing deleted UIDs from deleted identifiers
+ */
+const localDeletedCitizens = {
+  has: (val: string) => localDeletedUids.has(val) || localDeletedIdentifiers.has(val),
+  add: (val: string) => {
+    if (val.startsWith('SSB-')) localDeletedUids.add(val);
+    else localDeletedIdentifiers.add(val);
+  },
+  delete: (val: string) => {
+    localDeletedUids.delete(val);
+    localDeletedIdentifiers.delete(val);
+  },
+  clear: () => {
+    localDeletedUids.clear();
+    localDeletedIdentifiers.clear();
+  },
+};
+
+/**
+ * Resolve Redis connection credentials with strict environment variable validation
+ */
+function getRedisCredentials(): { url: string; token: string } | null {
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  if (!rawUrl || rawUrl === 'undefined' || !token || token === 'undefined') {
+    return null;
+  }
+  return { url: rawUrl.trim().replace(/\/+$/, ''), token };
+}
 
 /**
  * Reserved executive identifiers prohibited from being claimed via public citizen registration.
@@ -245,7 +277,8 @@ seedInitialAccounts();
 export function resetCitizenStoreForTesting(): void {
   localCitizenAccounts.clear();
   localUidToIdentifier.clear();
-  localDeletedCitizens.clear();
+  localDeletedUids.clear();
+  localDeletedIdentifiers.clear();
   seedInitialAccounts();
 }
 
@@ -256,50 +289,82 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
   const clean = normalizeCitizenIdentifier(identifierOrUid);
   if (!clean) return null;
 
+  const isUid = clean.startsWith('SSB-');
+
   // Immediate check if this account was deleted in current lifecycle
-  if (localDeletedCitizens.has(clean)) {
-    return null;
-  }
-  if (clean.startsWith('SSB-') && localUidToIdentifier.has(clean)) {
-    const mapped = localUidToIdentifier.get(clean)!;
-    if (localDeletedCitizens.has(mapped)) {
+  if (isUid) {
+    if (localDeletedUids.has(clean)) {
+      return null;
+    }
+  } else {
+    if (localDeletedIdentifiers.has(clean) && !localCitizenAccounts.has(clean)) {
       return null;
     }
   }
 
   // 1. Check in-memory index
-  if (localCitizenAccounts.has(clean)) {
-    return localCitizenAccounts.get(clean)!;
-  }
-  if (clean.startsWith('SSB-') && localUidToIdentifier.has(clean)) {
-    const mapped = localUidToIdentifier.get(clean)!;
-    if (localCitizenAccounts.has(mapped)) {
-      return localCitizenAccounts.get(mapped)!;
+  if (isUid) {
+    const mapped = localUidToIdentifier.get(clean);
+    if (mapped && localCitizenAccounts.has(mapped)) {
+      const acct = localCitizenAccounts.get(mapped)!;
+      if (localDeletedUids.has(acct.uid)) return null;
+      return acct;
+    }
+  } else {
+    if (localCitizenAccounts.has(clean)) {
+      const acct = localCitizenAccounts.get(clean)!;
+      if (localDeletedUids.has(acct.uid)) return null;
+      return acct;
     }
   }
 
   // 2. Query Redis if available
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!rawUrl || !redisToken) return null;
+  const redis = getRedisCredentials();
+  if (!redis) return null;
+  const { url, token: redisToken } = redis;
 
   try {
-    const url = rawUrl.trim().replace(/\/+$/, '');
 
     // Check if account is marked deleted in Redis
-    const isDeletedRes = await fetch(`${url}/sismember/scamshield:citizens:deleted/${clean}`, {
+    if (isUid) {
+      const isDeletedRes = await fetch(`${url}/sismember/scamshield:citizens:deleted:uids/${clean}`, {
+        headers: { Authorization: `Bearer ${redisToken}` },
+      });
+      if (isDeletedRes.ok) {
+        const isDeletedData = await isDeletedRes.json();
+        if (isDeletedData?.result === 1) {
+          localDeletedUids.add(clean);
+          return null;
+        }
+      }
+    } else {
+      const isDeletedRes = await fetch(`${url}/sismember/scamshield:citizens:deleted:identifiers/${clean}`, {
+        headers: { Authorization: `Bearer ${redisToken}` },
+      });
+      if (isDeletedRes.ok) {
+        const isDeletedData = await isDeletedRes.json();
+        if (isDeletedData?.result === 1) {
+          localDeletedIdentifiers.add(clean);
+          return null;
+        }
+      }
+    }
+
+    // Fallback check on legacy deleted set
+    const legacyCheckRes = await fetch(`${url}/sismember/scamshield:citizens:deleted/${clean}`, {
       headers: { Authorization: `Bearer ${redisToken}` },
     });
-    if (isDeletedRes.ok) {
-      const isDeletedData = await isDeletedRes.json();
-      if (isDeletedData?.result === 1) {
-        localDeletedCitizens.add(clean);
+    if (legacyCheckRes.ok) {
+      const legacyData = await legacyCheckRes.json();
+      if (legacyData?.result === 1) {
+        if (isUid) localDeletedUids.add(clean);
+        else localDeletedIdentifiers.add(clean);
         return null;
       }
     }
 
     let key = `scamshield:citizen:acct:${clean}`;
-    if (clean.startsWith('SSB-')) {
+    if (isUid) {
       // Lookup UID index first
       const uidRes = await fetch(`${url}/get/scamshield:citizen:uid:${clean}`, {
         headers: { Authorization: `Bearer ${redisToken}` },
@@ -319,7 +384,7 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
       const data = await res.json();
       if (data?.result) {
         const parsed: CitizenAccountRecord = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
-        if (localDeletedCitizens.has(parsed.uid) || localDeletedCitizens.has(parsed.normalizedIdentifier)) {
+        if (localDeletedUids.has(parsed.uid)) {
           return null;
         }
         localCitizenAccounts.set(parsed.normalizedIdentifier, parsed);
@@ -329,7 +394,7 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
     }
 
     // Direct UID key fallback if uid mapping wasn't found
-    if (clean.startsWith('SSB-') && key !== `scamshield:citizen:acct:${clean}`) {
+    if (isUid && key !== `scamshield:citizen:acct:${clean}`) {
       const fallbackRes = await fetch(`${url}/get/scamshield:citizen:acct:${clean}`, {
         headers: { Authorization: `Bearer ${redisToken}` },
       });
@@ -337,7 +402,7 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
         const fallbackData = await fallbackRes.json();
         if (fallbackData?.result) {
           const parsed: CitizenAccountRecord = typeof fallbackData.result === 'string' ? JSON.parse(fallbackData.result) : fallbackData.result;
-          if (localDeletedCitizens.has(parsed.uid) || localDeletedCitizens.has(parsed.normalizedIdentifier)) {
+          if (localDeletedUids.has(parsed.uid)) {
             return null;
           }
           localCitizenAccounts.set(parsed.normalizedIdentifier, parsed);
@@ -356,36 +421,50 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
 /**
  * Persist citizen record to Redis and local cache.
  */
-export async function saveCitizenAccountAsync(record: CitizenAccountRecord): Promise<void> {
+export async function saveCitizenAccountAsync(record: CitizenAccountRecord): Promise<boolean> {
   localCitizenAccounts.set(record.normalizedIdentifier, record);
   localUidToIdentifier.set(record.uid, record.normalizedIdentifier);
+  localDeletedIdentifiers.delete(record.normalizedIdentifier);
 
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (!rawUrl || !redisToken) return;
+  const redis = getRedisCredentials();
+  if (!redis) return true;
+  const { url, token: redisToken } = redis;
 
   try {
-    const url = rawUrl.trim().replace(/\/+$/, '');
     const serialized = JSON.stringify(record);
-    const commands = [
+    const commands: (string | number)[][] = [
       ['SET', `scamshield:citizen:acct:${record.normalizedIdentifier}`, serialized],
       ['SET', `scamshield:citizen:acct:${record.uid}`, serialized],
       ['SET', `scamshield:citizen:uid:${record.uid}`, record.normalizedIdentifier],
       ['SET', `scamshield:citizen:credits:${record.uid}`, String(record.credits)],
       ['SADD', 'scamshield:citizens:index', record.normalizedIdentifier],
       ['SADD', 'scamshield:citizens:uids', record.uid],
+      ['SREM', 'scamshield:citizens:deleted:identifiers', record.normalizedIdentifier],
+      ['SREM', 'scamshield:citizens:deleted', record.normalizedIdentifier],
+      ['DEL', `scamshield:revoked:user:${record.normalizedIdentifier}`],
     ];
 
-    await fetch(`${url}/pipeline`, {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`${url}/pipeline`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${redisToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(commands),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!Array.isArray(data)) return false;
+    for (const cmdResult of data) {
+      if (cmdResult?.error) return false;
+    }
+    return true;
   } catch {
-    // Local cache remains authoritative if Redis write times out in test
+    return false;
   }
 }
 
@@ -440,28 +519,42 @@ export async function getAllCitizenAccountsAsync(): Promise<CitizenAccountRecord
 
   // Load all local in-memory accounts (excluding deleted)
   for (const [id, acct] of localCitizenAccounts.entries()) {
-    if (!localDeletedCitizens.has(acct.uid) && !localDeletedCitizens.has(acct.normalizedIdentifier)) {
+    if (!localDeletedUids.has(acct.uid)) {
       accountsMap.set(id, acct);
     }
   }
 
   // Query Redis if available
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  const redis = getRedisCredentials();
 
-  if (rawUrl && redisToken) {
+  if (redis) {
     try {
-      const url = rawUrl.trim().replace(/\/+$/, '');
+      const { url, token: redisToken } = redis;
 
-      // Load deleted accounts set from Redis
-      const deletedRes = await fetch(`${url}/smembers/scamshield:citizens:deleted`, {
+      // Load deleted UIDs set from Redis
+      const deletedRes = await fetch(`${url}/smembers/scamshield:citizens:deleted:uids`, {
         headers: { Authorization: `Bearer ${redisToken}` },
       });
       if (deletedRes.ok) {
         const deletedData = await deletedRes.json();
         if (Array.isArray(deletedData?.result)) {
           for (const d of deletedData.result) {
-            localDeletedCitizens.add(d);
+            localDeletedUids.add(d);
+          }
+        }
+      }
+
+      // Load legacy deleted set for backward compatibility
+      const legacyDeletedRes = await fetch(`${url}/smembers/scamshield:citizens:deleted`, {
+        headers: { Authorization: `Bearer ${redisToken}` },
+      });
+      if (legacyDeletedRes.ok) {
+        const legacyData = await legacyDeletedRes.json();
+        if (Array.isArray(legacyData?.result)) {
+          for (const d of legacyData.result) {
+            if (typeof d === 'string' && d.startsWith('SSB-')) {
+              localDeletedUids.add(d);
+            }
           }
         }
       }
@@ -472,7 +565,7 @@ export async function getAllCitizenAccountsAsync(): Promise<CitizenAccountRecord
       if (membersRes.ok) {
         const membersData = await membersRes.json();
         const identifiers: string[] = Array.isArray(membersData?.result)
-          ? membersData.result.filter((id: string) => !localDeletedCitizens.has(id))
+          ? membersData.result
           : [];
 
         if (identifiers.length > 0) {
@@ -495,8 +588,7 @@ export async function getAllCitizenAccountsAsync(): Promise<CitizenAccountRecord
                   if (
                     record &&
                     record.normalizedIdentifier &&
-                    !localDeletedCitizens.has(record.uid) &&
-                    !localDeletedCitizens.has(record.normalizedIdentifier)
+                    !localDeletedUids.has(record.uid)
                   ) {
                     accountsMap.set(record.normalizedIdentifier, record);
                     localCitizenAccounts.set(record.normalizedIdentifier, record);
@@ -514,7 +606,7 @@ export async function getAllCitizenAccountsAsync(): Promise<CitizenAccountRecord
   }
 
   return Array.from(accountsMap.values()).filter(
-    (acct) => !localDeletedCitizens.has(acct.uid) && !localDeletedCitizens.has(acct.normalizedIdentifier)
+    (acct) => !localDeletedUids.has(acct.uid)
   );
 }
 
@@ -540,10 +632,11 @@ export interface DeleteCitizenResult {
  * 3. Removes members from index sets:
  *    - scamshield:citizens:index
  *    - scamshield:citizens:uids
- * 4. Adds UID/identifier to scamshield:citizens:deleted to prevent resurrection across instances.
+ * 4. Adds UID to scamshield:citizens:deleted:uids and identifier to scamshield:citizens:deleted:identifiers.
  * 5. Revokes all active sessions for the citizen so they cannot access the system again.
  * 6. Handles repeated or already-deleted deletion requests idempotently.
  * 7. Never deletes another citizen by matching strictly on exact UID or identifier.
+ * 8. Validates every Redis pipeline command result and never swallows datastore errors.
  */
 export async function deleteCitizenAccountAsync(
   targetUidOrIdentifier: string
@@ -582,31 +675,83 @@ export async function deleteCitizenAccountAsync(
     };
   }
 
+  const redis = getRedisCredentials();
+
   // 3. Handle already deleted or nonexistent account idempotently
   if (!citizen) {
-    localDeletedCitizens.add(clean);
-    const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-    if (rawUrl && redisToken) {
+    if (clean.startsWith('SSB-')) {
+      localDeletedUids.add(clean);
+    } else {
+      localDeletedIdentifiers.add(clean);
+    }
+
+    if (redis) {
+      const { url, token: redisToken } = redis;
+      const commands: (string | number)[][] = [
+        ['DEL', `scamshield:citizen:acct:${clean}`],
+        ['DEL', `scamshield:citizen:uid:${clean}`],
+        ['DEL', `scamshield:citizen:credits:${clean}`],
+        ['SREM', 'scamshield:citizens:index', clean],
+        ['SREM', 'scamshield:citizens:uids', clean],
+      ];
+      if (clean.startsWith('SSB-')) {
+        commands.push(['SADD', 'scamshield:citizens:deleted:uids', clean]);
+        commands.push(['SADD', 'scamshield:citizens:deleted', clean]);
+      } else {
+        commands.push(['SADD', 'scamshield:citizens:deleted:identifiers', clean]);
+        commands.push(['SADD', 'scamshield:citizens:deleted', clean]);
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
       try {
-        const url = rawUrl.trim().replace(/\/+$/, '');
-        const commands = [
-          ['DEL', `scamshield:citizen:acct:${clean}`],
-          ['DEL', `scamshield:citizen:uid:${clean}`],
-          ['DEL', `scamshield:citizen:credits:${clean}`],
-          ['SREM', 'scamshield:citizens:index', clean],
-          ['SREM', 'scamshield:citizens:uids', clean],
-          ['SADD', 'scamshield:citizens:deleted', clean],
-        ];
-        await fetch(`${url}/pipeline`, {
+        const res = await fetch(`${url}/pipeline`, {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${redisToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(commands),
+          signal: controller.signal,
         });
-      } catch {}
+        clearTimeout(timeout);
+        if (!res.ok) {
+          console.error(`[REDIS_DELETE_ERROR] Datastore HTTP ${res.status} on cleanup for '${clean}'`);
+          return {
+            success: false,
+            code: 'REDIS_HTTP_ERROR',
+            message: `Datastore error during cleanup (HTTP ${res.status}).`,
+          };
+        }
+        const data = await res.json();
+        if (!Array.isArray(data)) {
+          return {
+            success: false,
+            code: 'REDIS_RESPONSE_ERROR',
+            message: 'Invalid datastore response format.',
+          };
+        }
+        for (let i = 0; i < data.length; i++) {
+          const cmdResult = data[i];
+          if (cmdResult && cmdResult.error) {
+            console.error(`[REDIS_DELETE_ERROR] Command ${i} failed during cleanup: ${cmdResult.error}`);
+            return {
+              success: false,
+              code: 'REDIS_COMMAND_ERROR',
+              message: `Datastore command error: ${cmdResult.error}`,
+            };
+          }
+        }
+      } catch (err: any) {
+        clearTimeout(timeout);
+        return {
+          success: false,
+          code: err?.name === 'AbortError' ? 'REDIS_TIMEOUT' : 'REDIS_NETWORK_ERROR',
+          message: err?.name === 'AbortError'
+            ? 'Datastore timed out during account cleanup.'
+            : 'Network error communicating with datastore.',
+        };
+      }
     }
     return {
       success: true,
@@ -628,48 +773,89 @@ export async function deleteCitizenAccountAsync(
     };
   }
 
-  // 4. Purge from in-memory stores
-  localCitizenAccounts.delete(targetIdentifier);
-  localCitizenAccounts.delete(targetUid);
-  localUidToIdentifier.delete(targetUid);
-  localDeletedCitizens.add(targetUid);
-  localDeletedCitizens.add(targetIdentifier);
+  // 4. Redis Deletion with Full Status & Command Validation
+  if (redis) {
+    const { url, token: redisToken } = redis;
+    const commands: (string | number)[][] = [
+      ['DEL', `scamshield:citizen:acct:${targetIdentifier}`],
+      ['DEL', `scamshield:citizen:acct:${targetUid}`],
+      ['DEL', `scamshield:citizen:uid:${targetUid}`],
+      ['DEL', `scamshield:citizen:credits:${targetUid}`],
+      ['SREM', 'scamshield:citizens:index', targetIdentifier],
+      ['SREM', 'scamshield:citizens:uids', targetUid],
+      ['SADD', 'scamshield:citizens:deleted:uids', targetUid],
+      ['SADD', 'scamshield:citizens:deleted', targetUid],
+      ['SADD', 'scamshield:citizens:deleted:identifiers', targetIdentifier],
+      ['SET', `scamshield:revoked:user:${targetUid}`, 'deleted', 'EX', 7 * 86400],
+      ['SET', `scamshield:revoked:user:${targetIdentifier}`, 'deleted', 'EX', 7 * 86400],
+    ];
 
-  // 5. Revoke all active sessions for this citizen
-  await revokeUserSessionsAsync(targetUid, targetIdentifier);
-
-  // 6. Purge authoritative Redis records and index sets
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-
-  if (rawUrl && redisToken) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
     try {
-      const url = rawUrl.trim().replace(/\/+$/, '');
-      const commands = [
-        ['DEL', `scamshield:citizen:acct:${targetIdentifier}`],
-        ['DEL', `scamshield:citizen:acct:${targetUid}`],
-        ['DEL', `scamshield:citizen:uid:${targetUid}`],
-        ['DEL', `scamshield:citizen:credits:${targetUid}`],
-        ['SREM', 'scamshield:citizens:index', targetIdentifier],
-        ['SREM', 'scamshield:citizens:uids', targetUid],
-        ['SADD', 'scamshield:citizens:deleted', targetUid],
-        ['SADD', 'scamshield:citizens:deleted', targetIdentifier],
-        ['SET', `scamshield:revoked:user:${targetUid}`, 'deleted', 'EX', 7 * 86400],
-        ['SET', `scamshield:revoked:user:${targetIdentifier}`, 'deleted', 'EX', 7 * 86400],
-      ];
-
-      await fetch(`${url}/pipeline`, {
+      const res = await fetch(`${url}/pipeline`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${redisToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(commands),
+        signal: controller.signal,
       });
-    } catch {
-      // Memory store already purged
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        console.error(`[REDIS_DELETE_ERROR] Upstash responded with HTTP ${res.status}`);
+        return {
+          success: false,
+          code: 'REDIS_HTTP_ERROR',
+          message: `Failed to delete citizen account from authoritative datastore (HTTP ${res.status}).`,
+        };
+      }
+
+      const data = await res.json();
+      if (!Array.isArray(data)) {
+        console.error(`[REDIS_DELETE_ERROR] Invalid pipeline response: not an array`, data);
+        return {
+          success: false,
+          code: 'REDIS_RESPONSE_ERROR',
+          message: 'Invalid response from authoritative datastore during account deletion.',
+        };
+      }
+
+      for (let i = 0; i < data.length; i++) {
+        const cmdResult = data[i];
+        if (cmdResult && cmdResult.error) {
+          console.error(`[REDIS_DELETE_ERROR] Pipeline command ${i} failed: ${cmdResult.error}`);
+          return {
+            success: false,
+            code: 'REDIS_COMMAND_ERROR',
+            message: `Datastore command error: ${cmdResult.error}`,
+          };
+        }
+      }
+    } catch (err: any) {
+      clearTimeout(timeout);
+      console.error(`[REDIS_DELETE_ERROR] Network or timeout error during account deletion:`, err?.message || err);
+      return {
+        success: false,
+        code: err?.name === 'AbortError' ? 'REDIS_TIMEOUT' : 'REDIS_NETWORK_ERROR',
+        message: err?.name === 'AbortError'
+          ? 'Authoritative datastore timed out during account deletion.'
+          : 'Network error communicating with authoritative datastore.',
+      };
     }
   }
+
+  // 5. Purge from in-memory stores ONLY AFTER REDIS SUCCEEDS (or if in local fallback mode)
+  localCitizenAccounts.delete(targetIdentifier);
+  localCitizenAccounts.delete(targetUid);
+  localUidToIdentifier.delete(targetUid);
+  localDeletedUids.add(targetUid);
+  localDeletedIdentifiers.add(targetIdentifier);
+
+  // 6. Revoke in-memory sessions for this citizen
+  await revokeUserSessionsAsync(targetUid, targetIdentifier);
 
   console.log(`[AUDIT:CITIZEN_DELETE] Target UID: ${targetUid}, Status: DELETED`);
 
@@ -1017,12 +1203,11 @@ export async function deductCitizenCreditAsync(
   }
 
   // Attempt atomic Redis decrement if available
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  const redis = getRedisCredentials();
 
-  if (rawUrl && redisToken) {
+  if (redis) {
     try {
-      const url = rawUrl.trim().replace(/\/+$/, '');
+      const { url, token: redisToken } = redis;
       const key = `scamshield:citizen:credits:${uid}`;
       // Lua script for atomic non-negative decrement: returns remaining balance, or -1 if 0
       const script = `
@@ -1080,12 +1265,11 @@ export async function refundCitizenCreditAsync(uid: string): Promise<{ success: 
     (citizen.isUnlimited && (!citizen.unlimitedExpiresAt || citizen.unlimitedExpiresAt > now));
   if (isPremiumActive) return { success: true, creditsRemaining: citizen.credits };
 
-  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  const redis = getRedisCredentials();
 
-  if (rawUrl && redisToken) {
+  if (redis) {
     try {
-      const url = rawUrl.trim().replace(/\/+$/, '');
+      const { url, token: redisToken } = redis;
       const key = `scamshield:citizen:credits:${uid}`;
       const res = await fetch(`${url}/incr/${key}`, {
         headers: { Authorization: `Bearer ${redisToken}` },

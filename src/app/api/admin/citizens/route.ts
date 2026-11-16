@@ -142,13 +142,16 @@ export async function DELETE(req: NextRequest) {
 
   if (!deleteResult.success) {
     const isForbidden = deleteResult.code === 'PROTECTED_ACCOUNT';
+    const isTimeout = deleteResult.code === 'REDIS_TIMEOUT';
+    const isDatastoreError = deleteResult.code?.startsWith('REDIS_') || deleteResult.code === 'DATASTORE_ERROR';
+    const status = isForbidden ? 403 : (isTimeout ? 504 : (isDatastoreError ? 500 : 400));
     return NextResponse.json(
       {
         success: false,
         error: deleteResult.message,
         code: deleteResult.code || 'DELETE_FAILED',
       },
-      { status: isForbidden ? 403 : 400 }
+      { status }
     );
   }
 
