@@ -169,7 +169,7 @@ export default function AdminPage() {
 
     // Authoritatively fetch newly registered citizens from server backend
     try {
-      const res = await fetch('/api/admin/citizens');
+      const res = await fetch('/api/admin/citizens', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         if (data?.success && Array.isArray(data.citizens)) {
@@ -202,7 +202,7 @@ export default function AdminPage() {
       const isAuthedSession = sessionStorage.getItem('scamshield_admin_authenticated') === 'true';
       if (isAuthedSession) {
         // Cryptographically verify active privileged admin session with dedicated server endpoint
-        fetch('/api/admin/verify')
+        fetch('/api/admin/verify', { credentials: 'include' })
           .then((res) => res.json())
           .then((data) => {
             if (data?.authorized) {
@@ -313,6 +313,7 @@ export default function AdminPage() {
       const serverRes = await fetch('/api/admin/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           action: 'ALLOT_PREMIUM',
           payload: {
@@ -359,7 +360,7 @@ export default function AdminPage() {
     setIsEditModalOpen(true);
   };
 
-  const handleCreateCitizenSubmit = (e: React.FormEvent) => {
+  const handleCreateCitizenSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addName.trim() || !addContact.trim()) {
       showNotification('कृपया सदस्य का नाम व मोबाइल/ईमेल दर्ज करें।');
@@ -374,30 +375,43 @@ export default function AdminPage() {
       isUnlimited: addUnlimited,
       credits: addCredits,
     });
-    fetch('/api/admin/action', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'APPOINT_POST',
-        payload: {
-          uid: created.uid,
-          name: addName.trim(),
-          role: addRole,
-          designation: created.designation,
-          organization: addOrg,
-          credits: addCredits,
-          isUnlimited: addUnlimited,
-          password: addPassword.trim() || undefined,
-        },
-      }),
-    }).catch(() => {});
+    try {
+      const serverRes = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'APPOINT_POST',
+          payload: {
+            uid: created.uid,
+            name: addName.trim(),
+            identifier: addContact.trim(),
+            emailOrPhone: addContact.trim(),
+            contact: addContact.trim(),
+            role: addRole,
+            designation: created.designation,
+            organization: addOrg,
+            credits: addCredits,
+            isUnlimited: addUnlimited,
+            password: addPassword.trim() || undefined,
+          },
+        }),
+      });
+      const data = await serverRes.json().catch(() => ({}));
+      if (!serverRes.ok) {
+        showNotification(`⚠️ सर्वर नियुक्ति सिंक चेतावनी: ${data.error || 'Server rejected'}`);
+      }
+    } catch {
+      showNotification('⚠️ सर्वर संचार त्रुटि (Network Error)।');
+    }
+
     setIsAddModalOpen(false);
     const assignedPass = addPassword.trim();
     setAddName('');
     setAddContact('');
     setAddDesignation('');
     setAddPassword('');
-    reloadData();
+    await reloadData();
 
     if (assignedPass) {
       setCredentialsSlip({
@@ -420,11 +434,13 @@ export default function AdminPage() {
       const serverRes = await fetch('/api/admin/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           action: 'APPOINT_POST',
           payload: {
             uid: selectedCitizenForEdit.uid,
             name: editName.trim(),
+            identifier: selectedCitizenForEdit.emailOrPhone,
             role: editRole,
             designation: editDesignation.trim(),
             organization: editOrg.trim(),
@@ -480,6 +496,7 @@ export default function AdminPage() {
       const serverRes = await fetch('/api/admin/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           action: 'DELETE_CITIZEN',
           payload: { uid },
@@ -508,11 +525,37 @@ export default function AdminPage() {
   };
 
   // Admin Actions on UTRs
-  const handleApproveUtr = (utr: string) => {
+  const handleApproveUtr = async (utr: string) => {
     const reviewer = user?.name || 'Master Admin';
-    adminApproveUtr(utr, `Approved by ${reviewer}`, reviewer);
-    reloadData();
-    showNotification(`UTR ${utr} approved! Credits and access granted to citizen.`);
+    const txns = getAllUtrTransactions();
+    const txn = txns.find((t) => t.utr === utr);
+
+    try {
+      const serverRes = await fetch('/api/admin/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'APPROVE_UTR',
+          payload: {
+            utr,
+            userUid: txn?.userUid,
+            planId: txn?.planId,
+            notes: `Approved by ${reviewer}`,
+          },
+        }),
+      });
+      const data = await serverRes.json().catch(() => ({}));
+      if (!serverRes.ok) {
+        showNotification(`⚠️ UTR सत्यापन अस्वीकृत: ${data.error || 'Server error'}`);
+        return;
+      }
+      adminApproveUtr(utr, `Approved by ${reviewer}`, reviewer);
+      await reloadData();
+      showNotification(`✅ UTR ${utr} सत्यापित! नागरिक को प्रीमियम/क्रेडिट्स आवंटित किए गए।`);
+    } catch {
+      showNotification('⚠️ सर्वर संचार त्रुटि (Network Error)।');
+    }
   };
 
   const handleRejectUtr = (utr: string) => {
@@ -533,6 +576,7 @@ export default function AdminPage() {
       const serverRes = await fetch('/api/admin/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           action: 'UPDATE_BENEFICIARY_UPI',
           payload: { upi: clean },
@@ -595,6 +639,7 @@ export default function AdminPage() {
       const res = await fetch('/api/admin/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           action: 'CHANGE_ADMIN_PASSKEY',
           currentPasskey: cur,

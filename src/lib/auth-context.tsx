@@ -100,11 +100,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsMounted(true);
     try {
+      const savedUserStr = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_USER) : null;
+      const parsedLocal: UserProfile | null = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const uidParam = parsedLocal?.uid ? `?uid=${encodeURIComponent(parsedLocal.uid)}` : '';
+
       // Sync with server session if available
-      fetch('/api/auth/session')
+      fetch(`/api/auth/session${uidParam}`, { credentials: 'include' })
         .then((res) => res.json())
         .then((data) => {
-          if (data?.authenticated && data?.user) {
+          if (data?.user) {
             const serverUser: UserProfile = data.user;
             setUser(serverUser);
             if (typeof serverUser.credits === 'number') {
@@ -153,6 +157,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (myRecord && myRecord.isUnlimited) {
           setIsUnlimited(true);
+        } else if (parsed.isUnlimited) {
+          setIsUnlimited(true);
         } else {
           setIsUnlimited(false);
           localStorage.removeItem(STORAGE_KEY_UNLIMITED);
@@ -192,7 +198,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('storage', handleSubscriptionUpdate);
     window.addEventListener('focus', handleSubscriptionUpdate);
 
+    // Periodic live sync (every 12 seconds) so newly allotted Pro Passes activate automatically across devices
+    const intervalId = setInterval(() => {
+      refreshSubscription();
+    }, 12000);
+
     return () => {
+      clearInterval(intervalId);
       window.removeEventListener('scamshield_subscription_updated', handleSubscriptionUpdate);
       window.removeEventListener('storage', handleSubscriptionUpdate);
       window.removeEventListener('focus', handleSubscriptionUpdate);
@@ -201,13 +213,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshSubscription = async () => {
     try {
+      const savedUserStr = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_USER) : null;
+      const parsedLocalUser: UserProfile | null = savedUserStr ? JSON.parse(savedUserStr) : null;
+      const activeUid = user?.uid || parsedLocalUser?.uid;
+      const uidQuery = activeUid ? `?uid=${encodeURIComponent(activeUid)}` : '';
+
       // 1. Authoritative check from server session endpoint
-      const res = await fetch('/api/auth/session').catch(() => null);
+      const res = await fetch(`/api/auth/session${uidQuery}`, {
+        credentials: 'include',
+      }).catch(() => null);
+
       if (res && res.ok) {
         const data = await res.json().catch(() => null);
-        if (data?.authenticated && data?.user) {
+        if (data?.user) {
           const sUser: UserProfile = data.user;
-          setUser(sUser);
+          const merged: UserProfile = user ? { ...user, ...sUser } : sUser;
+          setUser(merged);
           if (typeof sUser.credits === 'number') {
             setCredits(sUser.credits);
             localStorage.setItem(STORAGE_KEY_CREDITS, sUser.credits.toString());
@@ -221,9 +242,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
           try {
-            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sUser));
+            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(merged));
           } catch {}
-          syncCurrentUserToRegistry(sUser);
+          syncCurrentUserToRegistry(merged);
           return;
         }
       }
@@ -373,6 +394,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn('Failed to save user', e);
     }
     syncCurrentUserToRegistry({ ...withUid, isUnlimited: hasActiveUnlimited, credits: assignedCredits });
+    // Trigger immediate background sync with server to fetch live entitlements
+    setTimeout(() => refreshSubscription(), 50);
   };
 
   const updateUser = (updated: Partial<UserProfile>) => {
@@ -388,15 +411,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const loginAsDemo = (type: 'investor' | 'investigator') => {
+    const demoProfile = DEMO_USERS[type];
+    login(demoProfile);
     if (typeof window !== 'undefined') {
       fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ isDemo: true, demoType: type }),
-      }).catch(() => {});
+      })
+        .then(() => refreshSubscription())
+        .catch(() => {});
     }
-    const demoProfile = DEMO_USERS[type];
-    login(demoProfile);
   };
 
   const loginAsAdmin = async (passkey: string): Promise<{ success: boolean; error?: string }> => {
@@ -409,6 +435,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           identifier: 'admin',
           password: clean,

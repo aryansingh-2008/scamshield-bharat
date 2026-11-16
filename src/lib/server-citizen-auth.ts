@@ -130,6 +130,7 @@ function seedInitialAccounts() {
     credits: 20,
     isUnlimited: false,
     unlimitedExpiresAt: null,
+    planType: 'sachet',
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
   };
@@ -149,11 +150,52 @@ function seedInitialAccounts() {
     credits: 999,
     isUnlimited: true,
     unlimitedExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+    planType: 'pro',
     createdAt: '2026-11-01T00:00:00.000Z',
     updatedAt: '2026-11-01T00:00:00.000Z',
   };
   localCitizenAccounts.set(demoInvestigator.normalizedIdentifier, demoInvestigator);
   localUidToIdentifier.set(demoInvestigator.uid, demoInvestigator.normalizedIdentifier);
+
+  const rohanSeed = hashCitizenPassword('RohanGupta@2026', 'seed_salt_rohan_789');
+  const demoRohan: CitizenAccountRecord = {
+    uid: 'SSB-2026-102948',
+    normalizedIdentifier: 'rohan.gupta99@gmail.com',
+    name: 'Rohan Gupta',
+    salt: rohanSeed.salt,
+    passwordHash: rohanSeed.hash,
+    role: 'investor',
+    designation: 'Verified Citizen Member',
+    organization: 'ScamShield Bharat',
+    credits: 5,
+    isUnlimited: false,
+    unlimitedExpiresAt: null,
+    planType: 'free',
+    createdAt: '2026-11-10T11:20:00.000Z',
+    updatedAt: '2026-11-10T11:20:00.000Z',
+  };
+  localCitizenAccounts.set(demoRohan.normalizedIdentifier, demoRohan);
+  localUidToIdentifier.set(demoRohan.uid, demoRohan.normalizedIdentifier);
+
+  const priyaSeed = hashCitizenPassword('PriyaMehra@2026', 'seed_salt_priya_101');
+  const demoPriya: CitizenAccountRecord = {
+    uid: 'SSB-2026-645129',
+    normalizedIdentifier: 'priya.mehra@guild.org',
+    name: 'Priya Mehra',
+    salt: priyaSeed.salt,
+    passwordHash: priyaSeed.hash,
+    role: 'investor',
+    designation: 'Verified Retail Investor',
+    organization: 'Retail Investor Protection Guild',
+    credits: 50,
+    isUnlimited: true,
+    unlimitedExpiresAt: Date.now() + 25 * 24 * 60 * 60 * 1000,
+    planType: 'pro',
+    createdAt: '2026-11-08T15:00:00.000Z',
+    updatedAt: '2026-11-08T15:00:00.000Z',
+  };
+  localCitizenAccounts.set(demoPriya.normalizedIdentifier, demoPriya);
+  localUidToIdentifier.set(demoPriya.uid, demoPriya.normalizedIdentifier);
 }
 
 seedInitialAccounts();
@@ -177,7 +219,9 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
   }
   if (clean.startsWith('SSB-') && localUidToIdentifier.has(clean)) {
     const mapped = localUidToIdentifier.get(clean)!;
-    return localCitizenAccounts.get(mapped) || null;
+    if (localCitizenAccounts.has(mapped)) {
+      return localCitizenAccounts.get(mapped)!;
+    }
   }
 
   // 2. Query Redis if available
@@ -213,6 +257,22 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
         return parsed;
       }
     }
+
+    // Direct UID key fallback if uid mapping wasn't found
+    if (clean.startsWith('SSB-') && key !== `scamshield:citizen:acct:${clean}`) {
+      const fallbackRes = await fetch(`${url}/get/scamshield:citizen:acct:${clean}`, {
+        headers: { Authorization: `Bearer ${redisToken}` },
+      });
+      if (fallbackRes.ok) {
+        const fallbackData = await fallbackRes.json();
+        if (fallbackData?.result) {
+          const parsed: CitizenAccountRecord = typeof fallbackData.result === 'string' ? JSON.parse(fallbackData.result) : fallbackData.result;
+          localCitizenAccounts.set(parsed.normalizedIdentifier, parsed);
+          localUidToIdentifier.set(parsed.uid, parsed.normalizedIdentifier);
+          return parsed;
+        }
+      }
+    }
   } catch {
     // Fallback to local
   }
@@ -233,8 +293,10 @@ export async function saveCitizenAccountAsync(record: CitizenAccountRecord): Pro
 
   try {
     const url = rawUrl.trim().replace(/\/+$/, '');
+    const serialized = JSON.stringify(record);
     const commands = [
-      ['SET', `scamshield:citizen:acct:${record.normalizedIdentifier}`, JSON.stringify(record)],
+      ['SET', `scamshield:citizen:acct:${record.normalizedIdentifier}`, serialized],
+      ['SET', `scamshield:citizen:acct:${record.uid}`, serialized],
       ['SET', `scamshield:citizen:uid:${record.uid}`, record.normalizedIdentifier],
       ['SET', `scamshield:citizen:credits:${record.uid}`, String(record.credits)],
       ['SADD', 'scamshield:citizens:index', record.normalizedIdentifier],
@@ -531,13 +593,41 @@ export async function updateCitizenAccountAsync(params: {
   isUnlimited?: boolean;
   unlimitedExpiresAt?: number | null;
   planType?: 'free' | 'sachet' | 'pro' | 'annual';
+  identifier?: string;
+  emailOrPhone?: string;
 }): Promise<{ success: boolean; citizen?: CitizenAccountRecord; error?: string }> {
   // Chief Admin is permanent and cannot be modified or demoted via this function
   if (params.uid === 'SSB-ADMIN-0001') {
     return { success: false, error: 'Chief Admin account identity is immutable and protected.' };
   }
 
-  const citizen = await getCitizenAccountAsync(params.uid);
+  let citizen = await getCitizenAccountAsync(params.uid);
+  if (!citizen && (params.identifier || params.emailOrPhone || params.name)) {
+    // If citizen doesn't exist yet, automatically CREATE the citizen account!
+    const identInput = params.identifier || params.emailOrPhone || params.uid;
+    const ident = normalizeCitizenIdentifier(identInput) || params.uid;
+    const assignedRole = params.role === 'admin' ? 'admin' : (params.role === 'investigator' ? 'investigator' : 'investor');
+    const { salt, hash, iterations } = hashCitizenPassword(params.password || 'Citizen@2026', undefined, OWASP_RECOMMENDED_PBKDF2_ITERATIONS);
+    const now = new Date().toISOString();
+    citizen = {
+      uid: params.uid,
+      normalizedIdentifier: ident,
+      name: params.name?.trim() || `Citizen ${ident}`,
+      salt,
+      passwordHash: hash,
+      iterations,
+      role: assignedRole,
+      designation: params.designation?.trim() || 'Verified Citizen Member',
+      organization: params.organization?.trim() || 'ScamShield Bharat',
+      credits: params.credits ?? (params.isUnlimited || params.role === 'admin' ? 9999 : 25),
+      isUnlimited: Boolean(params.isUnlimited),
+      unlimitedExpiresAt: params.unlimitedExpiresAt ?? (params.isUnlimited ? Date.now() + 30 * 86400000 : null),
+      planType: params.planType || (params.isUnlimited ? 'pro' : 'free'),
+      createdAt: now,
+      updatedAt: now,
+    };
+  }
+
   if (!citizen) {
     return { success: false, error: 'Citizen account not found.' };
   }

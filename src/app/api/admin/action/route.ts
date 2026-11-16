@@ -8,7 +8,13 @@ import {
   verifyServerAdminPasskeyAsync,
   setCustomAdminPasskeyRecordAsync,
 } from '../../../../lib/server-admin-auth';
-import { updateCitizenAccountAsync, allotCitizenPremiumAsync, getAllCitizenAccountsAsync } from '../../../../lib/server-citizen-auth';
+import {
+  updateCitizenAccountAsync,
+  allotCitizenPremiumAsync,
+  getAllCitizenAccountsAsync,
+  getCitizenAccountAsync,
+  saveCitizenAccountAsync,
+} from '../../../../lib/server-citizen-auth';
 
 /**
  * Server-Side Privileged Action Route
@@ -129,6 +135,8 @@ export async function POST(req: NextRequest) {
     const update = await updateCitizenAccountAsync({
       uid: payload.uid,
       name: typeof payload.name === 'string' ? payload.name : undefined,
+      identifier: payload.identifier || payload.emailOrPhone || payload.contact,
+      emailOrPhone: payload.emailOrPhone || payload.identifier || payload.contact,
       role: payload.role,
       designation: payload.designation,
       organization: payload.organization,
@@ -156,6 +164,51 @@ export async function POST(req: NextRequest) {
         ? `Citizen post, credentials and entitlements securely updated on server.`
         : (update.error || 'Failed to update citizen on server.'),
     }, { status: update.success ? 200 : 400 });
+  }
+
+  // Handle APPROVE_UTR
+  if (action === 'APPROVE_UTR') {
+    const payload = body.payload || {};
+    const { utr, userUid, planId, notes } = payload;
+    if (!utr) {
+      return NextResponse.json(
+        { success: false, error: 'UTR number is required.', code: 'MISSING_UTR' },
+        { status: 400 }
+      );
+    }
+
+    let citizen = userUid ? await getCitizenAccountAsync(userUid) : null;
+    let daysToAdd = 0;
+    let creditsToAdd = 0;
+    if (planId === 'pro') daysToAdd = 30;
+    else if (planId === 'annual') daysToAdd = 365;
+    else creditsToAdd = 15;
+
+    if (citizen) {
+      if (daysToAdd > 0) {
+        await allotCitizenPremiumAsync({
+          uid: citizen.uid,
+          days: daysToAdd,
+          allottedBy: verification.user.uid || 'admin',
+        });
+      } else if (creditsToAdd > 0) {
+        citizen.credits = (citizen.credits || 0) + creditsToAdd;
+        await saveCitizenAccountAsync(citizen);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      action: 'APPROVE_UTR',
+      message: `UTR ${utr} successfully approved on server.`,
+      citizen: citizen ? {
+        uid: citizen.uid,
+        name: citizen.name,
+        credits: citizen.credits,
+        isUnlimited: citizen.isUnlimited,
+        unlimitedExpiresAt: citizen.unlimitedExpiresAt,
+      } : undefined,
+    });
   }
 
   // Handle ALLOT_PREMIUM
