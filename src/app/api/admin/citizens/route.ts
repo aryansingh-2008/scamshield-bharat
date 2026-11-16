@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifySessionTokenAsync, SESSION_COOKIE_NAME } from '../../../../lib/server-auth';
 import { verifyPrivilegedAdminSession } from '../../../../lib/server-admin-auth';
-import { getAllCitizenAccountsAsync } from '../../../../lib/server-citizen-auth';
+import { getAllCitizenAccountsAsync, deleteCitizenAccountAsync } from '../../../../lib/server-citizen-auth';
 
 /**
  * Dedicated Authoritative Administrative Citizen Listing Endpoint
@@ -77,5 +77,86 @@ export async function GET(req: NextRequest) {
     success: true,
     citizens: safeCitizens,
     count: safeCitizens.length,
+  });
+}
+
+/**
+ * Dedicated Authoritative Administrative Citizen Deletion Endpoint
+ */
+export async function DELETE(req: NextRequest) {
+  const token =
+    req.cookies.get(SESSION_COOKIE_NAME)?.value ||
+    req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+  if (!token) {
+    return NextResponse.json(
+      { success: false, error: 'Authentication required. No active administrative session.', code: 'UNAUTHENTICATED' },
+      { status: 401 }
+    );
+  }
+
+  const verification = await verifySessionTokenAsync(token);
+  if (!verification.valid || !verification.user) {
+    const isDistributedRequired = verification.error === 'DISTRIBUTED_STORE_REQUIRED';
+    return NextResponse.json(
+      {
+        success: false,
+        error: isDistributedRequired
+          ? 'Security Policy Violation: Privileged administrative access requires an active distributed datastore. Access is failed-closed.'
+          : 'Session token invalid or expired.',
+        code: verification.error,
+      },
+      { status: isDistributedRequired ? 503 : 401 }
+    );
+  }
+
+  // Deleting a citizen requires chief administrator authority
+  const privilegeCheck = verifyPrivilegedAdminSession(verification.user, 'chief_admin');
+  if (!privilegeCheck.authorized) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: privilegeCheck.error || 'Access Denied: Chief Administrative privileges required.',
+        code: privilegeCheck.code || 'FORBIDDEN_ROLE',
+      },
+      { status: 403 }
+    );
+  }
+
+  // Support UID via query parameter or JSON body
+  let targetUid = req.nextUrl.searchParams.get('uid');
+  if (!targetUid) {
+    const body = await req.json().catch(() => ({}));
+    targetUid = body?.uid;
+  }
+
+  if (!targetUid || typeof targetUid !== 'string' || !targetUid.trim()) {
+    return NextResponse.json(
+      { success: false, error: 'Target Citizen UID is required for deletion.', code: 'MISSING_UID' },
+      { status: 400 }
+    );
+  }
+
+  const cleanUid = targetUid.trim();
+  const deleteResult = await deleteCitizenAccountAsync(cleanUid);
+
+  if (!deleteResult.success) {
+    const isForbidden = deleteResult.code === 'PROTECTED_ACCOUNT';
+    return NextResponse.json(
+      {
+        success: false,
+        error: deleteResult.message,
+        code: deleteResult.code || 'DELETE_FAILED',
+      },
+      { status: isForbidden ? 403 : 400 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    uid: cleanUid,
+    alreadyDeleted: deleteResult.alreadyDeleted,
+    message: deleteResult.message,
+    executedBy: verification.user.uid,
   });
 }

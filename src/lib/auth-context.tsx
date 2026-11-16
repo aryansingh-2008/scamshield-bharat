@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { generateCitizenId, syncCurrentUserToRegistry, getAllCitizens } from './user-registry';
+import { generateCitizenId, syncCurrentUserToRegistry, getAllCitizens, adminDeleteCitizen } from './user-registry';
 
 import {
   UserProfile,
@@ -129,6 +129,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               }
             } catch {}
             syncCurrentUserToRegistry(serverUser);
+          } else if (data && (data.accountDeleted || (data.authenticated === false && !data.user))) {
+            // Authoritative server response: account does not exist or was deleted
+            if (parsedLocal && parsedLocal.role !== 'admin') {
+              setUser(null);
+              setIsUnlimited(false);
+              try {
+                localStorage.removeItem(STORAGE_KEY_USER);
+                localStorage.removeItem(STORAGE_KEY_UNLIMITED);
+                if (parsedLocal.uid) {
+                  adminDeleteCitizen(parsedLocal.uid);
+                }
+              } catch {}
+              const ledger = getDeviceTrialLedger();
+              const remainingFree = Math.max(0, MAX_DEVICE_FREE_SCANS - ledger.freeScansUsed);
+              setCredits(remainingFree);
+              try {
+                localStorage.setItem(STORAGE_KEY_CREDITS, remainingFree.toString());
+              } catch {}
+            }
           }
         })
         .catch(() => {});
@@ -246,6 +265,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } catch {}
           syncCurrentUserToRegistry(merged);
           return;
+        } else if (data && (data.accountDeleted || (data.authenticated === false && !data.user))) {
+          // Server indicates account is deleted or nonexistent
+          if (parsedLocalUser && parsedLocalUser.role !== 'admin') {
+            setUser(null);
+            setIsUnlimited(false);
+            try {
+              localStorage.removeItem(STORAGE_KEY_USER);
+              localStorage.removeItem(STORAGE_KEY_UNLIMITED);
+              if (activeUid) {
+                adminDeleteCitizen(activeUid);
+              }
+            } catch {}
+            const ledger = getDeviceTrialLedger();
+            const remainingFree = Math.max(0, MAX_DEVICE_FREE_SCANS - ledger.freeScansUsed);
+            setCredits(remainingFree);
+            try {
+              localStorage.setItem(STORAGE_KEY_CREDITS, remainingFree.toString());
+            } catch {}
+            return;
+          }
         }
       }
 

@@ -6,6 +6,7 @@ import {
   DEMO_USERS,
   UserProfile,
 } from './auth-constants';
+import { revokeUserSessionsAsync } from './server-auth';
 
 export interface CitizenAccountRecord {
   uid: string;
@@ -29,6 +30,7 @@ export interface CitizenAccountRecord {
 // In-memory backing store for local testing, fallback, and instance caching
 const localCitizenAccounts = new Map<string, CitizenAccountRecord>();
 const localUidToIdentifier = new Map<string, string>();
+const localDeletedCitizens = new Set<string>();
 
 /**
  * Reserved executive identifiers prohibited from being claimed via public citizen registration.
@@ -117,6 +119,46 @@ export function verifyCitizenPasswordWithMigration(
 function seedInitialAccounts() {
   if (localCitizenAccounts.size > 0) return;
 
+  const adminRecord: CitizenAccountRecord = {
+    uid: 'SSB-ADMIN-0001',
+    normalizedIdentifier: 'admin@scamshieldbharat.live',
+    name: 'Aryan Singh (Chief Admin)',
+    salt: '0000000000000000',
+    passwordHash: '0000000000000000',
+    iterations: 600000,
+    role: 'admin',
+    designation: 'Chief Cyber Safety Officer & System Administrator',
+    organization: 'ScamShield Bharat (IIT BHU Civic Initiative)',
+    credits: 9999,
+    isUnlimited: true,
+    unlimitedExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+    planType: 'annual',
+    createdAt: '2026-11-01T10:00:00.000Z',
+    updatedAt: new Date().toISOString(),
+  };
+  localCitizenAccounts.set(adminRecord.normalizedIdentifier, adminRecord);
+  localUidToIdentifier.set(adminRecord.uid, adminRecord.normalizedIdentifier);
+
+  const presidentRecord: CitizenAccountRecord = {
+    uid: 'SSB-PRESIDENT-0001',
+    normalizedIdentifier: 'president@scamshieldbharat.live',
+    name: 'Arti (President)',
+    salt: '0000000000000000',
+    passwordHash: '0000000000000000',
+    iterations: 600000,
+    role: 'admin',
+    designation: 'President & Executive Director',
+    organization: 'ScamShield Bharat (IIT BHU Civic Initiative)',
+    credits: 9999,
+    isUnlimited: true,
+    unlimitedExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+    planType: 'annual',
+    createdAt: '2026-11-01T09:00:00.000Z',
+    updatedAt: new Date().toISOString(),
+  };
+  localCitizenAccounts.set(presidentRecord.normalizedIdentifier, presidentRecord);
+  localUidToIdentifier.set(presidentRecord.uid, presidentRecord.normalizedIdentifier);
+
   const investorSeed = hashCitizenPassword('DemoInvestor@2026', 'seed_salt_investor_123');
   const demoInvestor: CitizenAccountRecord = {
     uid: DEMO_USERS.investor.uid,
@@ -203,6 +245,7 @@ seedInitialAccounts();
 export function resetCitizenStoreForTesting(): void {
   localCitizenAccounts.clear();
   localUidToIdentifier.clear();
+  localDeletedCitizens.clear();
   seedInitialAccounts();
 }
 
@@ -212,6 +255,17 @@ export function resetCitizenStoreForTesting(): void {
 export async function getCitizenAccountAsync(identifierOrUid: string): Promise<CitizenAccountRecord | null> {
   const clean = normalizeCitizenIdentifier(identifierOrUid);
   if (!clean) return null;
+
+  // Immediate check if this account was deleted in current lifecycle
+  if (localDeletedCitizens.has(clean)) {
+    return null;
+  }
+  if (clean.startsWith('SSB-') && localUidToIdentifier.has(clean)) {
+    const mapped = localUidToIdentifier.get(clean)!;
+    if (localDeletedCitizens.has(mapped)) {
+      return null;
+    }
+  }
 
   // 1. Check in-memory index
   if (localCitizenAccounts.has(clean)) {
@@ -231,6 +285,19 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
 
   try {
     const url = rawUrl.trim().replace(/\/+$/, '');
+
+    // Check if account is marked deleted in Redis
+    const isDeletedRes = await fetch(`${url}/sismember/scamshield:citizens:deleted/${clean}`, {
+      headers: { Authorization: `Bearer ${redisToken}` },
+    });
+    if (isDeletedRes.ok) {
+      const isDeletedData = await isDeletedRes.json();
+      if (isDeletedData?.result === 1) {
+        localDeletedCitizens.add(clean);
+        return null;
+      }
+    }
+
     let key = `scamshield:citizen:acct:${clean}`;
     if (clean.startsWith('SSB-')) {
       // Lookup UID index first
@@ -252,6 +319,9 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
       const data = await res.json();
       if (data?.result) {
         const parsed: CitizenAccountRecord = typeof data.result === 'string' ? JSON.parse(data.result) : data.result;
+        if (localDeletedCitizens.has(parsed.uid) || localDeletedCitizens.has(parsed.normalizedIdentifier)) {
+          return null;
+        }
         localCitizenAccounts.set(parsed.normalizedIdentifier, parsed);
         localUidToIdentifier.set(parsed.uid, parsed.normalizedIdentifier);
         return parsed;
@@ -267,6 +337,9 @@ export async function getCitizenAccountAsync(identifierOrUid: string): Promise<C
         const fallbackData = await fallbackRes.json();
         if (fallbackData?.result) {
           const parsed: CitizenAccountRecord = typeof fallbackData.result === 'string' ? JSON.parse(fallbackData.result) : fallbackData.result;
+          if (localDeletedCitizens.has(parsed.uid) || localDeletedCitizens.has(parsed.normalizedIdentifier)) {
+            return null;
+          }
           localCitizenAccounts.set(parsed.normalizedIdentifier, parsed);
           localUidToIdentifier.set(parsed.uid, parsed.normalizedIdentifier);
           return parsed;
@@ -365,9 +438,11 @@ export async function getAllCitizenAccountsAsync(): Promise<CitizenAccountRecord
     accountsMap.set(seed.normalizedIdentifier, seed);
   }
 
-  // Load all local in-memory accounts
+  // Load all local in-memory accounts (excluding deleted)
   for (const [id, acct] of localCitizenAccounts.entries()) {
-    accountsMap.set(id, acct);
+    if (!localDeletedCitizens.has(acct.uid) && !localDeletedCitizens.has(acct.normalizedIdentifier)) {
+      accountsMap.set(id, acct);
+    }
   }
 
   // Query Redis if available
@@ -377,12 +452,28 @@ export async function getAllCitizenAccountsAsync(): Promise<CitizenAccountRecord
   if (rawUrl && redisToken) {
     try {
       const url = rawUrl.trim().replace(/\/+$/, '');
+
+      // Load deleted accounts set from Redis
+      const deletedRes = await fetch(`${url}/smembers/scamshield:citizens:deleted`, {
+        headers: { Authorization: `Bearer ${redisToken}` },
+      });
+      if (deletedRes.ok) {
+        const deletedData = await deletedRes.json();
+        if (Array.isArray(deletedData?.result)) {
+          for (const d of deletedData.result) {
+            localDeletedCitizens.add(d);
+          }
+        }
+      }
+
       const membersRes = await fetch(`${url}/smembers/scamshield:citizens:index`, {
         headers: { Authorization: `Bearer ${redisToken}` },
       });
       if (membersRes.ok) {
         const membersData = await membersRes.json();
-        const identifiers: string[] = Array.isArray(membersData?.result) ? membersData.result : [];
+        const identifiers: string[] = Array.isArray(membersData?.result)
+          ? membersData.result.filter((id: string) => !localDeletedCitizens.has(id))
+          : [];
 
         if (identifiers.length > 0) {
           const pipelineCommands = identifiers.map((id) => ['GET', `scamshield:citizen:acct:${id}`]);
@@ -401,7 +492,12 @@ export async function getAllCitizenAccountsAsync(): Promise<CitizenAccountRecord
                 if (item?.result) {
                   const record: CitizenAccountRecord =
                     typeof item.result === 'string' ? JSON.parse(item.result) : item.result;
-                  if (record && record.normalizedIdentifier) {
+                  if (
+                    record &&
+                    record.normalizedIdentifier &&
+                    !localDeletedCitizens.has(record.uid) &&
+                    !localDeletedCitizens.has(record.normalizedIdentifier)
+                  ) {
                     accountsMap.set(record.normalizedIdentifier, record);
                     localCitizenAccounts.set(record.normalizedIdentifier, record);
                     localUidToIdentifier.set(record.uid, record.normalizedIdentifier);
@@ -417,7 +513,171 @@ export async function getAllCitizenAccountsAsync(): Promise<CitizenAccountRecord
     }
   }
 
-  return Array.from(accountsMap.values());
+  return Array.from(accountsMap.values()).filter(
+    (acct) => !localDeletedCitizens.has(acct.uid) && !localDeletedCitizens.has(acct.normalizedIdentifier)
+  );
+}
+
+export interface DeleteCitizenResult {
+  success: boolean;
+  message: string;
+  code?: string;
+  alreadyDeleted?: boolean;
+  uid?: string;
+}
+
+/**
+ * Authoritatively deletes a citizen account from Redis and in-memory stores.
+ *
+ * Security Requirements:
+ * 1. Strictly protects Chief Admin (SSB-ADMIN-0001), President (SSB-PRESIDENT-0001),
+ *    and any account with role === 'admin' from deletion.
+ * 2. Purges all associated Redis keys:
+ *    - scamshield:citizen:acct:${identifier}
+ *    - scamshield:citizen:acct:${uid}
+ *    - scamshield:citizen:uid:${uid}
+ *    - scamshield:citizen:credits:${uid}
+ * 3. Removes members from index sets:
+ *    - scamshield:citizens:index
+ *    - scamshield:citizens:uids
+ * 4. Adds UID/identifier to scamshield:citizens:deleted to prevent resurrection across instances.
+ * 5. Revokes all active sessions for the citizen so they cannot access the system again.
+ * 6. Handles repeated or already-deleted deletion requests idempotently.
+ * 7. Never deletes another citizen by matching strictly on exact UID or identifier.
+ */
+export async function deleteCitizenAccountAsync(
+  targetUidOrIdentifier: string
+): Promise<DeleteCitizenResult> {
+  const clean = normalizeCitizenIdentifier(targetUidOrIdentifier);
+  if (!clean) {
+    return {
+      success: false,
+      message: 'Citizen UID or identifier is required.',
+      code: 'MISSING_IDENTIFIER',
+    };
+  }
+
+  // 1. Protect Chief Admin, President, and Executive accounts
+  const isChiefAdmin = clean === 'SSB-ADMIN-0001' || clean === 'admin' || clean === 'aryan';
+  const isPresident = clean === 'SSB-PRESIDENT-0001' || clean === 'president' || clean === 'arti';
+  const isReserved = RESERVED_EXECUTIVE_IDENTIFIERS.has(clean.toLowerCase());
+
+  if (isChiefAdmin || isPresident || isReserved) {
+    return {
+      success: false,
+      message: 'सुरक्षा नियम: मुख्य व्यवस्थापक एवं राष्ट्रपति खाते (Chief Admin & President) अपरिवर्तनीय व स्थायी रूप से सुरक्षित हैं।',
+      code: 'PROTECTED_ACCOUNT',
+    };
+  }
+
+  // 2. Lookup existing account to obtain exact UID and normalized identifier
+  const citizen = await getCitizenAccountAsync(clean);
+
+  // If found, check role
+  if (citizen && citizen.role === 'admin') {
+    return {
+      success: false,
+      message: 'सुरक्षा नियम: व्यवस्थापक (Admin) खाते को हटाया नहीं जा सकता।',
+      code: 'PROTECTED_ACCOUNT',
+    };
+  }
+
+  // 3. Handle already deleted or nonexistent account idempotently
+  if (!citizen) {
+    localDeletedCitizens.add(clean);
+    const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+    if (rawUrl && redisToken) {
+      try {
+        const url = rawUrl.trim().replace(/\/+$/, '');
+        const commands = [
+          ['DEL', `scamshield:citizen:acct:${clean}`],
+          ['DEL', `scamshield:citizen:uid:${clean}`],
+          ['DEL', `scamshield:citizen:credits:${clean}`],
+          ['SREM', 'scamshield:citizens:index', clean],
+          ['SREM', 'scamshield:citizens:uids', clean],
+          ['SADD', 'scamshield:citizens:deleted', clean],
+        ];
+        await fetch(`${url}/pipeline`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${redisToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(commands),
+        });
+      } catch {}
+    }
+    return {
+      success: true,
+      alreadyDeleted: true,
+      uid: clean,
+      message: `खाता '${clean}' पहले ही हटाया जा चुका है या मौजूद नहीं है।`,
+    };
+  }
+
+  const targetUid = citizen.uid;
+  const targetIdentifier = citizen.normalizedIdentifier;
+
+  // Double check that target isn't protected
+  if (targetUid === 'SSB-ADMIN-0001' || targetUid === 'SSB-PRESIDENT-0001' || citizen.role === 'admin') {
+    return {
+      success: false,
+      message: 'सुरक्षा नियम: व्यवस्थापक खाते को हटाया नहीं जा सकता।',
+      code: 'PROTECTED_ACCOUNT',
+    };
+  }
+
+  // 4. Purge from in-memory stores
+  localCitizenAccounts.delete(targetIdentifier);
+  localCitizenAccounts.delete(targetUid);
+  localUidToIdentifier.delete(targetUid);
+  localDeletedCitizens.add(targetUid);
+  localDeletedCitizens.add(targetIdentifier);
+
+  // 5. Revoke all active sessions for this citizen
+  await revokeUserSessionsAsync(targetUid, targetIdentifier);
+
+  // 6. Purge authoritative Redis records and index sets
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+
+  if (rawUrl && redisToken) {
+    try {
+      const url = rawUrl.trim().replace(/\/+$/, '');
+      const commands = [
+        ['DEL', `scamshield:citizen:acct:${targetIdentifier}`],
+        ['DEL', `scamshield:citizen:acct:${targetUid}`],
+        ['DEL', `scamshield:citizen:uid:${targetUid}`],
+        ['DEL', `scamshield:citizen:credits:${targetUid}`],
+        ['SREM', 'scamshield:citizens:index', targetIdentifier],
+        ['SREM', 'scamshield:citizens:uids', targetUid],
+        ['SADD', 'scamshield:citizens:deleted', targetUid],
+        ['SADD', 'scamshield:citizens:deleted', targetIdentifier],
+        ['SET', `scamshield:revoked:user:${targetUid}`, 'deleted', 'EX', 7 * 86400],
+        ['SET', `scamshield:revoked:user:${targetIdentifier}`, 'deleted', 'EX', 7 * 86400],
+      ];
+
+      await fetch(`${url}/pipeline`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${redisToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(commands),
+      });
+    } catch {
+      // Memory store already purged
+    }
+  }
+
+  console.log(`[AUDIT:CITIZEN_DELETE] Target UID: ${targetUid}, Status: DELETED`);
+
+  return {
+    success: true,
+    uid: targetUid,
+    message: `नागरिक खाता '${citizen.name}' (${targetUid}) सफलतापूर्वक हटा दिया गया।`,
+  };
 }
 
 export const ALLOWED_PREMIUM_DURATIONS = [7, 30, 90, 180, 365] as const;
@@ -529,6 +789,15 @@ export async function createCitizenAccountAsync(params: {
     return { success: false, error: 'Password must be at least 6 characters.', code: 'PASSWORD_TOO_SHORT' };
   }
 
+  // Prohibit claiming reserved executive identities via public registration
+  if (RESERVED_EXECUTIVE_IDENTIFIERS.has(normalized.toLowerCase())) {
+    return {
+      success: false,
+      error: 'Registration using reserved administrative identifiers is prohibited.',
+      code: 'RESERVED_IDENTIFIER',
+    };
+  }
+
   // Check for existing account to prevent duplicate accounts
   const existing = await getCitizenAccountAsync(normalized);
   if (existing) {
@@ -536,15 +805,6 @@ export async function createCitizenAccountAsync(params: {
       success: false,
       error: 'An account with this mobile number or email already exists. Please sign in instead.',
       code: 'ACCOUNT_ALREADY_EXISTS',
-    };
-  }
-
-  // Prohibit claiming reserved executive identities via public registration
-  if (RESERVED_EXECUTIVE_IDENTIFIERS.has(normalized.toLowerCase())) {
-    return {
-      success: false,
-      error: 'Registration using reserved administrative identifiers is prohibited.',
-      code: 'RESERVED_IDENTIFIER',
     };
   }
 
